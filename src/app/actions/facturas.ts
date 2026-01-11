@@ -1,10 +1,8 @@
 "use server";
 
-import { PrismaClient } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { ProcessedDianInvoice } from "@/app/facturas/utils/dian-file-validator";
-
-const prisma = new PrismaClient();
+import { prisma } from "@/lib/prisma";
 
 /**
  * Guarda facturas DIAN en la base de datos
@@ -99,10 +97,22 @@ export async function saveDianInvoices(invoices: ProcessedDianInvoice[]) {
             message: `Se guardaron ${savedCount} factura(s)${skippedCount > 0 ? `, ${skippedCount} omitida(s)` : ""}`,
         };
     } catch (error) {
-        console.error("Error guardando facturas:", error);
+        console.error("❌ Error guardando facturas:", error);
+        const errorMessage = error instanceof Error ? error.message : "Error desconocido al guardar las facturas";
+        
+        // Mensaje más descriptivo para errores comunes
+        let userMessage = errorMessage;
+        if (errorMessage.includes("DATABASE_URL")) {
+            userMessage = "Error de configuración: DATABASE_URL no está configurada. Por favor, configura la conexión a la base de datos en el archivo .env";
+        } else if (errorMessage.includes("P1001") || errorMessage.includes("Can't reach database")) {
+            userMessage = "Error de conexión: No se puede conectar a la base de datos. Verifica que la base de datos esté corriendo y que DATABASE_URL sea correcta.";
+        } else if (errorMessage.includes("P2002") || errorMessage.includes("Unique constraint")) {
+            userMessage = "Algunas facturas ya existen en la base de datos (duplicados detectados)";
+        }
+        
         return {
             success: false,
-            error: error instanceof Error ? error.message : "Error al guardar las facturas en la base de datos",
+            error: userMessage,
         };
     }
 }

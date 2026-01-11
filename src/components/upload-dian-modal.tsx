@@ -66,14 +66,17 @@ export function UploadDianModal({
             const data = await processDianFile(file);
             
             // Save to database
+            console.log(`💾 Intentando guardar ${data.length} factura(s) en la base de datos...`);
             const saveResult = await saveDianInvoices(data);
             
             if (!saveResult.success) {
+                console.error("❌ Error al guardar en base de datos:", saveResult.error);
                 setErrorMessage(
-                    saveResult.error || "Error al guardar las facturas en la base de datos"
+                    `Error al guardar en la base de datos: ${saveResult.error || "Error desconocido"}\n\nLos datos se guardaron temporalmente en el navegador, pero no se persistieron en la base de datos.`
                 );
-                setIsProcessing(false);
-                return;
+                // Continuar para guardar en localStorage como respaldo
+            } else {
+                console.log(`✅ ${saveResult.count} factura(s) guardada(s) exitosamente en la base de datos`);
             }
             
             // Also store in localStorage for backward compatibility

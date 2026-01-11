@@ -1,19 +1,62 @@
 "use server";
 
-import { PrismaClient } from "@prisma/client";
 import { revalidatePath } from "next/cache";
-
-const prisma = new PrismaClient();
+import { prisma } from "@/lib/prisma";
 
 export async function getBankPeriods() {
     try {
         const periods = await prisma.bankPeriod.findMany({
             orderBy: { startDate: "desc" },
+            include: {
+                _count: {
+                    select: { transactions: true }
+                },
+                transactions: {
+                    select: { amount: true }
+                }
+            }
         });
-        return { success: true, data: periods };
+
+        // Calculate totals for each period
+        const periodsWithTotals = periods.map(period => {
+            const cargos = period.transactions
+                .filter(t => Number(t.amount) < 0)
+                .reduce((sum, t) => sum + Math.abs(Number(t.amount)), 0);
+
+            const abonos = period.transactions
+                .filter(t => Number(t.amount) > 0)
+                .reduce((sum, t) => sum + Number(t.amount), 0);
+
+            return {
+                ...period,
+                cargos,
+                abonos,
+                // Remove transactions array to keep response light
+                transactions: undefined
+            };
+        });
+
+        return { success: true, data: periodsWithTotals };
     } catch (error) {
         console.error("Error fetching bank periods:", error);
         return { success: false, error: "Failed to fetch bank periods" };
+    }
+}
+
+export async function getBankPeriodById(id: string) {
+    try {
+        const period = await prisma.bankPeriod.findUnique({
+            where: { id },
+            include: {
+                transactions: {
+                    orderBy: { date: "asc" }
+                }
+            }
+        });
+        return { success: true, data: period };
+    } catch (error) {
+        console.error("Error fetching bank period:", error);
+        return { success: false, error: "Failed to fetch bank period" };
     }
 }
 
@@ -64,5 +107,28 @@ export async function saveBankTransactions(
     } catch (error) {
         console.error("Error saving transactions:", error);
         return { success: false, error: "Failed to save transactions" };
+    }
+}
+
+/**
+ * Obtiene la suma total de todos los cargos (negativos)
+ * registrados en la base de datos.
+ */
+export async function getTotalCargosGlobal() {
+    try {
+        const result = await prisma.bankTransaction.aggregate({
+            _sum: {
+                amount: true,
+            },
+            where: {
+                amount: {
+                    lt: 0,
+                },
+            },
+        });
+        return { success: true, total: Number(result._sum.amount || 0) };
+    } catch (error) {
+        console.error("Error calculating total cargos:", error);
+        return { success: false, error: "Failed to calculate total cargos" };
     }
 }
