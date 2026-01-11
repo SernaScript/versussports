@@ -6,9 +6,96 @@
 
 generator client {
   provider = "prisma-client"
+  output   = "../node_modules/.prisma/client"
 }
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
+}
+
+model BankPeriod {
+  id        String   @id @default(uuid())
+  name      String
+  startDate DateTime @map("start_date")
+  endDate   DateTime @map("end_date")
+  
+  transactions BankTransaction[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("bank_periods")
+}
+
+model BankTransaction {
+  id          String   @id @default(uuid())
+  date        DateTime
+  description String
+  branch      String?
+  documentId  String?  @map("document_id")
+  amount      Decimal  @db.Decimal(15, 2)
+  status      String   @default("PENDING") // PENDING, RECONCILED
+
+  periodId    String   @map("period_id")
+  period      BankPeriod @relation(fields: [periodId], references: [id])
+
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("bank_transactions")
+}
+
+model DianInvoice {
+  id            String   @id // CUFE or CUDE (unique identifier from DIAN)
+  documentType  String   @map("document_type")
+  folio         String
+  prefix        String
+  issueDate     DateTime @map("issue_date")
+  issuerNit     String   @map("issuer_nit")
+  issuerName    String   @map("issuer_name")
+  receiverNit   String   @map("receiver_nit")
+  receiverName  String   @map("receiver_name")
+  vat           Decimal  @db.Decimal(15, 2)
+  inc           Decimal  @db.Decimal(15, 2)
+  total         Decimal  @db.Decimal(15, 2)
+  group         String
+
+  // Optional fields from Excel
+  currency          String?  @map("currency")
+  paymentMethod     String?  @map("payment_method")
+  paymentMedium     String?  @map("payment_medium")
+  receptionDate     DateTime? @map("reception_date")
+  ica               Decimal? @db.Decimal(15, 2)
+  ic                Decimal? @db.Decimal(15, 2)
+  stamp             Decimal? @db.Decimal(15, 2)
+  incBags            Decimal? @map("inc_bags") @db.Decimal(15, 2)
+  carbonTax         Decimal? @map("carbon_tax") @db.Decimal(15, 2)
+  fuelTax           Decimal? @map("fuel_tax") @db.Decimal(15, 2)
+  dataTax           Decimal? @map("data_tax") @db.Decimal(15, 2)
+  icl               Decimal? @db.Decimal(15, 2)
+  inpp              Decimal? @db.Decimal(15, 2)
+  ibua              Decimal? @db.Decimal(15, 2)
+  icui              Decimal? @db.Decimal(15, 2)
+  withheldVat        Decimal? @map("withheld_vat") @db.Decimal(15, 2)
+  withheldIncome     Decimal? @map("withheld_income") @db.Decimal(15, 2)
+  withheldIca       Decimal? @map("withheld_ica") @db.Decimal(15, 2)
+  status             String?
+
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@unique([id])
+  @@map("dian_invoices")
+}
+
+model SiigoCredential {
+  id        String   @id @default(uuid())
+  username  String
+  accessKey String   @map("access_key")
+  partnerId String?  @map("partner_id")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("siigo_credentials")
 }

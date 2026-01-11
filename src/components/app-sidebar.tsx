@@ -1,5 +1,7 @@
+"use client";
+
 import Link from "next/link";
-import { FileText, Landmark, Calculator, Receipt } from "lucide-react";
+import { Landmark, Calculator, Receipt, Key } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export function AppSidebar() {
@@ -26,6 +28,12 @@ export function AppSidebar() {
                         <Button variant="ghost" className="w-full justify-start text-slate-300 hover:bg-slate-800 hover:text-white">
                             <Calculator className="mr-2 h-4 w-4" />
                             Ajustes contables
+                        </Button>
+                    </Link>
+                    <Link href="/siigo" passHref>
+                        <Button variant="ghost" className="w-full justify-start text-slate-300 hover:bg-slate-800 hover:text-white">
+                            <Key className="mr-2 h-4 w-4" />
+                            Credenciales Siigo
                         </Button>
                     </Link>
                 </nav>
