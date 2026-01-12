@@ -11,12 +11,10 @@ import { ProcessedDianInvoice } from "./utils/dian-file-validator";
 import { getDianInvoices } from "@/app/actions/facturas";
 import { UploadDianModal } from "@/components/upload-dian-modal";
 
-type GroupFilter = "all" | "Emitido" | "Recibido";
 type ItemsPerPage = 20 | 40 | 60;
 
 export default function FacturasPage() {
     const [invoices, setInvoices] = useState<ProcessedDianInvoice[]>([]);
-    const [groupFilter, setGroupFilter] = useState<GroupFilter>("all");
     const [itemsPerPage, setItemsPerPage] = useState<ItemsPerPage>(20);
     const [currentPage, setCurrentPage] = useState(1);
     const [isLoading, setIsLoading] = useState(true);
@@ -130,21 +128,14 @@ export default function FacturasPage() {
             return !documentType.includes("application response");
         });
 
-        // Then apply group filter if needed
-        if (groupFilter !== "all") {
-            result = result.filter((invoice) => {
-                const group = invoice.group?.toLowerCase() || "";
-                if (groupFilter === "Emitido") {
-                    return group.includes("emitido") || group.includes("emitida");
-                }
-                if (groupFilter === "Recibido") {
-                    return group.includes("recibido") || group.includes("recibida");
-                }
-                return true;
-            });
-        }
+        // Then apply group filter (Always "Recibido")
+        result = result.filter((invoice) => {
+            const group = invoice.group?.toLowerCase() || "";
+            return group.includes("recibido") || group.includes("recibida");
+        });
+
         return result;
-    }, [invoices, groupFilter]);
+    }, [invoices]);
 
     // Paginate invoices
     const paginatedInvoices = useMemo(() => {
@@ -155,10 +146,9 @@ export default function FacturasPage() {
 
     const totalPages = Math.ceil(filteredInvoices.length / itemsPerPage);
 
-    // Reset to page 1 when filters change
     useEffect(() => {
         setCurrentPage(1);
-    }, [groupFilter, itemsPerPage]);
+    }, [itemsPerPage]);
 
     const formatDate = (dateString: string) => {
         try {
@@ -250,41 +240,26 @@ export default function FacturasPage() {
                                 {filteredInvoices.length}
                             </Badge>
                         </CardTitle>
-                        {invoices.length > 0 && (
-                            <div className="flex items-center gap-3 flex-wrap">
-                                <div className="flex items-center gap-2">
-                                    <span className="text-sm text-muted-foreground whitespace-nowrap">Mostrar:</span>
-                                    <Select
-                                        value={itemsPerPage.toString()}
-                                        onValueChange={(value) => {
-                                            setItemsPerPage(Number(value) as ItemsPerPage);
-                                        }}
-                                    >
-                                        <SelectTrigger className="w-[100px]">
-                                            <SelectValue />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="20">20</SelectItem>
-                                            <SelectItem value="40">40</SelectItem>
-                                            <SelectItem value="60">60</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                </div>
+                        <div className="flex items-center gap-3 flex-wrap">
+                            <div className="flex items-center gap-2">
+                                <span className="text-sm text-muted-foreground whitespace-nowrap">Mostrar:</span>
                                 <Select
-                                    value={groupFilter}
-                                    onValueChange={(value) => setGroupFilter(value as GroupFilter)}
+                                    value={itemsPerPage.toString()}
+                                    onValueChange={(value) => {
+                                        setItemsPerPage(Number(value) as ItemsPerPage);
+                                    }}
                                 >
-                                    <SelectTrigger className="w-[180px]">
-                                        <SelectValue placeholder="Filtrar por grupo" />
+                                    <SelectTrigger className="w-[100px]">
+                                        <SelectValue />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        <SelectItem value="all">Todas</SelectItem>
-                                        <SelectItem value="Emitido">Emitidas</SelectItem>
-                                        <SelectItem value="Recibido">Recibidas</SelectItem>
+                                        <SelectItem value="20">20</SelectItem>
+                                        <SelectItem value="40">40</SelectItem>
+                                        <SelectItem value="60">60</SelectItem>
                                     </SelectContent>
                                 </Select>
                             </div>
-                        )}
+                        </div>
                     </div>
                 </CardHeader>
                 <CardContent className="p-0">
@@ -452,6 +427,6 @@ export default function FacturasPage() {
                 onOpenChange={setIsUploadModalOpen}
                 onUploadSuccess={handleUploadSuccess}
             />
-        </div>
+        </div >
     );
 }

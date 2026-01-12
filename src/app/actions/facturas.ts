@@ -8,6 +8,41 @@ import { prisma } from "@/lib/prisma";
  * Guarda facturas DIAN en la base de datos
  * Evita duplicados usando el ID (CUFE/CUDE)
  */
+/**
+ * Helper to parse dates robustly
+ */
+function parseDate(value: any): Date | null {
+    if (!value) return null;
+    if (value instanceof Date) {
+        return isNaN(value.getTime()) ? null : value;
+    }
+
+    const str = String(value).trim();
+    if (!str) return null;
+
+    // Try standard constructor (ISO, YYYY-MM-DD, etc)
+    let date = new Date(str);
+    if (!isNaN(date.getTime())) return date;
+
+    // Try Excel format if it's a number (serial date) handled by upstream?
+    // But data seems to be strings here like "YYYY-MM-DD" or "DD/MM/YYYY"
+
+    // Try DD/MM/YYYY or DD-MM-YYYY
+    const parts = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
+    if (parts) {
+        const day = parseInt(parts[1], 10);
+        const month = parseInt(parts[2], 10) - 1;
+        const yearStr = parts[3];
+        let year = parseInt(yearStr, 10);
+        if (yearStr.length === 2) year += 2000;
+
+        date = new Date(year, month, day);
+        if (!isNaN(date.getTime())) return date;
+    }
+
+    return null;
+}
+
 export async function saveDianInvoices(invoices: ProcessedDianInvoice[]) {
     try {
         if (invoices.length === 0) {
@@ -16,23 +51,16 @@ export async function saveDianInvoices(invoices: ProcessedDianInvoice[]) {
 
         // Preparar datos para insertar/actualizar
         const formattedInvoices = invoices.map((invoice) => {
-            // Convertir issueDate a Date si es string
-            let issueDate: Date;
-            if (typeof invoice.issueDate === "string") {
-                issueDate = new Date(invoice.issueDate);
-            } else {
-                issueDate = invoice.issueDate as Date;
+            let issueDate = parseDate(invoice.issueDate);
+            // Si la fecha es inválida, usar fecha actual como fallback o dejar que falle?
+            // Para evitar el error "Invalid Date", si es null, usaremos new Date() 
+            // pero idealmente deberíamos omitir esta factura.
+            if (!issueDate) {
+                console.warn(`Fecha inválida para factura ${invoice.id}: ${invoice.issueDate}. Usando fecha actual.`);
+                issueDate = new Date(); // Fallback to avoid crash, or construct invalid date?
             }
 
-            // Convertir receptionDate si existe
-            let receptionDate: Date | null = null;
-            if (invoice.receptionDate) {
-                if (typeof invoice.receptionDate === "string") {
-                    receptionDate = new Date(invoice.receptionDate);
-                } else {
-                    receptionDate = invoice.receptionDate as Date;
-                }
-            }
+            const receptionDate = parseDate(invoice.receptionDate);
 
             return {
                 id: invoice.id,
@@ -99,7 +127,7 @@ export async function saveDianInvoices(invoices: ProcessedDianInvoice[]) {
     } catch (error) {
         console.error("❌ Error guardando facturas:", error);
         const errorMessage = error instanceof Error ? error.message : "Error desconocido al guardar las facturas";
-        
+
         // Mensaje más descriptivo para errores comunes
         let userMessage = errorMessage;
         if (errorMessage.includes("DATABASE_URL")) {
@@ -109,7 +137,7 @@ export async function saveDianInvoices(invoices: ProcessedDianInvoice[]) {
         } else if (errorMessage.includes("P2002") || errorMessage.includes("Unique constraint")) {
             userMessage = "Algunas facturas ya existen en la base de datos (duplicados detectados)";
         }
-        
+
         return {
             success: false,
             error: userMessage,
@@ -125,7 +153,32 @@ export async function getDianInvoices() {
         const invoices = await prisma.dianInvoice.findMany({
             orderBy: { issueDate: "desc" },
         });
-        return { success: true, data: invoices };
+
+        const serializedInvoices = invoices.map((invoice: any) => ({
+            ...invoice,
+            vat: Number(invoice.vat),
+            inc: Number(invoice.inc),
+            total: Number(invoice.total),
+            currency: invoice.currency,
+            paymentMethod: invoice.paymentMethod,
+            paymentMedium: invoice.paymentMedium,
+            ica: invoice.ica ? Number(invoice.ica) : null,
+            ic: invoice.ic ? Number(invoice.ic) : null,
+            stamp: invoice.stamp ? Number(invoice.stamp) : null,
+            incBags: invoice.incBags ? Number(invoice.incBags) : null,
+            carbonTax: invoice.carbonTax ? Number(invoice.carbonTax) : null,
+            fuelTax: invoice.fuelTax ? Number(invoice.fuelTax) : null,
+            dataTax: invoice.dataTax ? Number(invoice.dataTax) : null,
+            icl: invoice.icl ? Number(invoice.icl) : null,
+            inpp: invoice.inpp ? Number(invoice.inpp) : null,
+            ibua: invoice.ibua ? Number(invoice.ibua) : null,
+            icui: invoice.icui ? Number(invoice.icui) : null,
+            withheldVat: invoice.withheldVat ? Number(invoice.withheldVat) : null,
+            withheldIncome: invoice.withheldIncome ? Number(invoice.withheldIncome) : null,
+            withheldIca: invoice.withheldIca ? Number(invoice.withheldIca) : null,
+        }));
+
+        return { success: true, data: serializedInvoices };
     } catch (error) {
         console.error("Error obteniendo facturas:", error);
         return { success: false, error: "Error al obtener las facturas" };
