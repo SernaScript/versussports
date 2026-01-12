@@ -18,14 +18,14 @@ export async function getBankPeriods() {
         });
 
         // Calculate totals for each period
-        const periodsWithTotals = periods.map(period => {
+        const periodsWithTotals = periods.map((period: any) => {
             const cargos = period.transactions
-                .filter(t => Number(t.amount) < 0)
-                .reduce((sum, t) => sum + Math.abs(Number(t.amount)), 0);
+                .filter((t: any) => Number(t.amount) < 0)
+                .reduce((sum: number, t: any) => sum + Math.abs(Number(t.amount)), 0);
 
             const abonos = period.transactions
-                .filter(t => Number(t.amount) > 0)
-                .reduce((sum, t) => sum + Number(t.amount), 0);
+                .filter((t: any) => Number(t.amount) > 0)
+                .reduce((sum: number, t: any) => sum + Number(t.amount), 0);
 
             return {
                 ...period,
@@ -53,7 +53,19 @@ export async function getBankPeriodById(id: string) {
                 }
             }
         });
-        return { success: true, data: period };
+
+        if (!period) return { success: false, error: "Periodo no encontrado" };
+
+        // Convert Decimal to numbers for serialization
+        const serializedPeriod = {
+            ...period,
+            transactions: period.transactions.map((tx: any) => ({
+                ...tx,
+                amount: Number(tx.amount)
+            }))
+        };
+
+        return { success: true, data: serializedPeriod };
     } catch (error) {
         console.error("Error fetching bank period:", error);
         return { success: false, error: "Failed to fetch bank period" };

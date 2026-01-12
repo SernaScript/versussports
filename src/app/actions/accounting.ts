@@ -20,7 +20,7 @@ export async function processBankExpenses(periodId: string) {
 
         const period = await prisma.bankPeriod.findUnique({
             where: { id: periodId },
-            include: { transactions: { where: { status: "PENDING" } /* Only pending ones */ } }
+            include: { transactions: { where: { status: "APPROVED" } /* Only approved ones */ } }
         });
 
         if (!period) return { success: false, error: "Periodo no encontrado" };
@@ -30,7 +30,7 @@ export async function processBankExpenses(periodId: string) {
 
         // 2. Logic: Identify Expenses
         // Expenses are negative amounts
-        const expenses = period.transactions.filter(t => t.amount.toNumber() < 0);
+        const expenses = period.transactions.filter((t: any) => t.amount.toNumber() < 0);
         if (expenses.length === 0) {
             return { success: false, error: "No hay gastos (pagos negativos) pendientes." };
         }
@@ -155,5 +155,98 @@ export async function processBankExpenses(periodId: string) {
     } catch (error) {
         console.error("Error processing expenses:", error);
         return { success: false, error: "Error interno al procesar gastos." };
+    }
+}
+
+export async function getConsolidatedExpenses(periodId: string) {
+    try {
+        const concepts = await prisma.bankExpenseConcept.findMany({
+            include: { account: true }
+        });
+
+        const transactions = await prisma.bankTransaction.findMany({
+            where: {
+                periodId,
+                status: { in: ["PENDING", "APPROVED"] },
+            }
+        });
+
+        if (transactions.length === 0) return { success: true, data: [] };
+
+        const summary: Record<string, {
+            conceptId: string,
+            conceptAlias: string,
+            accountCode: string,
+            accountName: string,
+            count: number,
+            total: number,
+            transactions: any[]
+        }> = {};
+
+        const unmatched: any[] = [];
+
+        for (const tx of transactions) {
+            let matched = false;
+            const amount = Number(tx.amount);
+
+            for (const concept of concepts) {
+                const pattern = new RegExp(concept.pattern, 'i');
+                if (pattern.test(tx.description)) {
+                    if (!summary[concept.id]) {
+                        summary[concept.id] = {
+                            conceptId: concept.id,
+                            conceptAlias: concept.alias,
+                            accountCode: concept.accountCode,
+                            accountName: concept.account?.name || "",
+                            count: 0,
+                            total: 0,
+                            transactions: []
+                        };
+                    }
+                    summary[concept.id].count++;
+                    summary[concept.id].total += amount;
+                    summary[concept.id].transactions.push({
+                        ...tx,
+                        amount: amount // Already a number
+                    });
+                    matched = true;
+                    break;
+                }
+            }
+
+            if (!matched) {
+                unmatched.push({
+                    ...tx,
+                    amount: amount // Already a number
+                });
+            }
+        }
+
+        return {
+            success: true,
+            data: {
+                consolidated: Object.values(summary),
+                unmatched: unmatched,
+                totalMatched: Object.values(summary).reduce((sum, s) => sum + s.total, 0),
+                totalUnmatched: unmatched.reduce((sum, u) => sum + Number(u.amount), 0)
+            }
+        };
+
+    } catch (error) {
+        console.error("Error getting consolidated expenses:", error);
+        return { success: false, error: "Error al consolidar gastos." };
+    }
+}
+
+export async function approveMatchedExpenses(periodId: string, txIds: string[]) {
+    try {
+        await prisma.bankTransaction.updateMany({
+            where: { id: { in: txIds } },
+            data: { status: "APPROVED" }
+        });
+        revalidatePath(`/conciliaciones/${periodId}`);
+        return { success: true };
+    } catch (error) {
+        return { success: false, error: "Error al aprobar gastos." };
     }
 }
