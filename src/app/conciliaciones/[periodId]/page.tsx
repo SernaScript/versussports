@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, Upload, FileSpreadsheet, Save } from "lucide-react";
+import { ArrowLeft, Upload, FileSpreadsheet, Save, Loader2 } from "lucide-react";
 import { format, addMinutes } from "date-fns";
 import { es } from "date-fns/locale";
 import * as XLSX from "xlsx";
@@ -14,6 +14,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 
 import { getBankPeriodById, saveBankTransactions } from "@/app/actions/conciliaciones";
+import { processBankExpenses } from "@/app/actions/accounting";
+import { toast } from "sonner";
 
 // Helper to format currency without decimals
 const formatCurrency = (amount: number) => {
@@ -47,6 +49,7 @@ export default function PeriodDetailPage() {
     const [processedData, setProcessedData] = useState<any[]>([]);
     const [view, setView] = useState<"list" | "upload" | "preview">("list");
     const [isSaving, setIsSaving] = useState(false);
+    const [isAccounting, setIsAccounting] = useState(false);
 
     useEffect(() => {
         loadPeriodData();
@@ -60,6 +63,22 @@ export default function PeriodDetailPage() {
             setTransactions(res.data.transactions || []);
         }
         setLoading(false);
+    };
+
+    const handleProcessExpenses = async () => {
+        if (!confirm("¿Deseas generar el comprobante contable para los gastos identificados?")) return;
+
+        setIsAccounting(true);
+        const res = await processBankExpenses(periodId);
+        setIsAccounting(false);
+
+        if (res.success) {
+            toast.success(res.message);
+            if (res.warning) toast.warning(res.warning);
+            loadPeriodData();
+        } else {
+            toast.error(res.error);
+        }
     };
 
     const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -172,30 +191,6 @@ export default function PeriodDetailPage() {
         setView("list");
     };
 
-    if (loading) {
-        return (
-            <div className="p-8 max-w-7xl mx-auto">
-                <div className="flex items-center justify-center py-16">
-                    <p className="text-muted-foreground">Cargando...</p>
-                </div>
-            </div>
-        );
-    }
-
-    if (!period) {
-        return (
-            <div className="p-8 max-w-7xl mx-auto">
-                <div className="flex flex-col items-center justify-center py-16">
-                    <h2 className="text-2xl font-bold mb-2">Periodo no encontrado</h2>
-                    <Button onClick={() => router.push("/conciliaciones")}>
-                        <ArrowLeft className="w-4 h-4 mr-2" />
-                        Volver a Conciliaciones
-                    </Button>
-                </div>
-            </div>
-        );
-    }
-
     return (
         <div className="p-8 max-w-7xl mx-auto space-y-6">
             {/* Header */}
@@ -214,10 +209,16 @@ export default function PeriodDetailPage() {
                     </p>
                 </div>
                 {view === "list" && (
-                    <Button onClick={() => setView("upload")}>
-                        <Upload className="w-4 h-4 mr-2" />
-                        Cargar Más Transacciones
-                    </Button>
+                    <div className="flex gap-2">
+                        <Button onClick={handleProcessExpenses} disabled={isAccounting} variant="secondary">
+                            {isAccounting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <FileSpreadsheet className="w-4 h-4 mr-2" />}
+                            Contabilizar Gastos
+                        </Button>
+                        <Button onClick={() => setView("upload")}>
+                            <Upload className="w-4 h-4 mr-2" />
+                            Cargar Más Transacciones
+                        </Button>
+                    </div>
                 )}
             </div>
 

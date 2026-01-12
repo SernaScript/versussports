@@ -98,3 +98,61 @@ model SiigoCredential {
 
   @@map("siigo_credentials")
 }
+
+model SiigoAccount {
+  id          String   @id @default(uuid())
+  code        String   @unique
+  name        String
+  category    String?
+  class       String?
+  level       Int?
+  active      Boolean  @default(true)
+  
+  expenseConcepts BankExpenseConcept[]
+
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("siigo_accounts")
+}
+
+model BankExpenseConcept {
+  id          String   @id @default(uuid())
+  alias       String
+  pattern     String   // Keyword to match in transaction description
+  
+  accountCode String   @map("account_code")
+  account     SiigoAccount @relation(fields: [accountCode], references: [code])
+
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("bank_expense_concepts")
+}
+
+model SiigoSetting {
+  id                String   @id @default(uuid())
+  bankAccountCode   String?  @map("bank_account_code") // Cuenta del banco (e.g. 111005)
+  journalDocumentId String?  @map("journal_document_id") // Comprobante (e.g. CC-1)
+  costCenterCode    String?  @map("cost_center_code")
+  bankNit           String?  @map("bank_nit") // NIT del Banco para asignar gastos
+
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  @@map("siigo_settings")
+}
+
+model SiigoDocumentType {
+  id          Int      @id // The Siigo ID (e.g. 2445)
+  code        String   // The Code (e.g. "CC")
+  name        String   // The Name (e.g. "Comprobante de Egreso")
+  description String?
+  active      Boolean  @default(true)
+  type        String?  // 'Journal', 'Invoice', etc.
+
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("siigo_document_types")
+}

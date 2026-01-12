@@ -126,3 +126,49 @@ export async function deleteSiigoCredential() {
         return { success: false, error: "Error al eliminar la credencial" };
     }
 }
+
+// --- Journals (Comprobantes) ---
+
+export async function createJournal(journalData: any) {
+    try {
+        const credential = await prisma.siigoCredential.findFirst();
+        if (!credential) return { success: false, error: "No hay credenciales de Siigo configuradas." };
+
+        // 1. Authenticate
+        const authResponse = await fetch("https://api.siigo.com/auth", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ username: credential.username, access_key: credential.accessKey }),
+            cache: 'no-store'
+        });
+
+        if (!authResponse.ok) return { success: false, error: "Fallo autenticación con Siigo al crear comprobante" };
+        const { access_token } = await authResponse.json();
+
+        // 2. Create Journal
+        const response = await fetch("https://api.siigo.com/v1/journals", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${access_token}`,
+                "Partner-Id": credential.partnerId || ""
+            },
+            body: JSON.stringify(journalData)
+        });
+
+        const result = await response.json();
+
+        if (response.ok) {
+            return { success: true, data: result };
+        } else {
+            console.error("Siigo Journal Error:", JSON.stringify(result, null, 2));
+            return {
+                success: false,
+                error: result.Errors?.[0]?.Message || result.message || "Error al crear comprobante en Siigo"
+            };
+        }
+    } catch (error) {
+        console.error("Error creating journal:", error);
+        return { success: false, error: "Error de comunicación con Siigo" };
+    }
+}
