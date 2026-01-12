@@ -191,6 +191,26 @@ export default function PeriodDetailPage() {
         setView("list");
     };
 
+    if (loading) {
+        return (
+            <div className="flex flex-col items-center justify-center min-h-[400px]">
+                <Loader2 className="w-12 h-12 animate-spin text-muted-foreground" />
+                <p className="mt-4 text-muted-foreground">Cargando datos del periodo...</p>
+            </div>
+        );
+    }
+
+    if (!period) {
+        return (
+            <div className="p-8 text-center space-y-4">
+                <h2 className="text-2xl font-bold italic">No se encontró el periodo bancario</h2>
+                <Button onClick={() => router.push("/conciliaciones")}>
+                    <ArrowLeft className="w-4 h-4 mr-2" /> Volver a Conciliaciones
+                </Button>
+            </div>
+        );
+    }
+
     return (
         <div className="p-8 max-w-7xl mx-auto space-y-6">
             {/* Header */}
