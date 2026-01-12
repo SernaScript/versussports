@@ -15,7 +15,7 @@ import { Badge } from "@/components/ui/badge";
 
 import { getBankPeriodById, saveBankTransactions } from "@/app/actions/conciliaciones";
 import { processBankExpenses, getConsolidatedExpenses, approveMatchedExpenses } from "@/app/actions/accounting";
-import { getSiigoAccounts, createBankExpenseConcept } from "@/app/actions/ajustes";
+import { getSiigoAccounts, createBankExpenseConcept, getSiigoSettings, getDocumentTypes } from "@/app/actions/ajustes";
 import { toast } from "sonner";
 import {
     Dialog,
@@ -74,6 +74,16 @@ export default function PeriodDetailPage() {
     const [newConcept, setNewConcept] = useState({ alias: "", pattern: "", accountCode: "" });
     const [isCreatingConcept, setIsCreatingConcept] = useState(false);
 
+    // Accounting Modal states
+    const [accountingModalOpen, setAccountingModalOpen] = useState(false);
+    const [documentTypes, setDocumentTypes] = useState<any[]>([]);
+    const [accountingForm, setAccountingForm] = useState({
+        documentId: "",
+        bankAccountCode: "",
+        date: "",
+        observations: ""
+    });
+
     useEffect(() => {
         loadPeriodData();
     }, [periodId]);
@@ -90,7 +100,29 @@ export default function PeriodDetailPage() {
             if (consRes.success) {
                 setConsolidatedData(consRes.data);
             }
+
+            // Initialize accounting form date with period end date
+            if (res.data.endDate) {
+                const endDateStr = new Date(res.data.endDate).toISOString().split('T')[0];
+                setAccountingForm(prev => ({
+                    ...prev,
+                    date: endDateStr,
+                    observations: `Contabilización resumida bancaria ${res.data.name}.`
+                }));
+            }
         }
+
+        // Load document types for the modal
+        const docsRes = await getDocumentTypes();
+        if (docsRes.success) {
+            setDocumentTypes(docsRes.data || []);
+            // Set default document if found in settings
+            const settingsRes = await getSiigoSettings();
+            if (settingsRes.success && settingsRes.data?.journalDocumentId) {
+                setAccountingForm(prev => ({ ...prev, documentId: settingsRes.data?.journalDocumentId || "" }));
+            }
+        }
+
         setLoading(false);
     };
 
@@ -127,28 +159,57 @@ export default function PeriodDetailPage() {
         if (!consolidatedData || consolidatedData.consolidated.length === 0) return;
 
         setIsApproving(true);
-        const allTxIds = consolidatedData.consolidated.flatMap((c: any) => c.transactions.map((tx: any) => tx.id));
-        const res = await approveMatchedExpenses(periodId, allTxIds);
+        // Solo aprobamos lo que está PENDIENTE
+        const pendingTxIds = consolidatedData.consolidated.flatMap((c: any) =>
+            c.transactions
+                .filter((tx: any) => tx.status === "PENDING")
+                .map((tx: any) => tx.id)
+        );
+
+        if (pendingTxIds.length === 0) {
+            toast.info("No hay nuevas transacciones identificadas para aprobar.");
+            setIsApproving(false);
+            return;
+        }
+
+        const res = await approveMatchedExpenses(periodId, pendingTxIds);
         setIsApproving(false);
 
         if (res.success) {
-            toast.success(`${allTxIds.length} transacciones marcadas como APROBADAS`);
+            toast.success(`${pendingTxIds.length} transacciones marcadas como APROBADAS`);
             loadPeriodData();
         } else {
             toast.error(res.error);
         }
     };
 
+    const handleOpenAccountingModal = () => {
+        if (!consolidatedData?.consolidated?.some((c: any) => c.approvedCount > 0)) {
+            toast.error("No hay movimientos aprobados para contabilizar.");
+            return;
+        }
+        setAccountingModalOpen(true);
+    };
+
     const handleProcessExpenses = async () => {
-        if (!confirm("¿Deseas generar el comprobante contable para los gastos identificados?")) return;
+        if (!accountingForm.documentId || !accountingForm.date || !accountingForm.bankAccountCode) {
+            toast.error("El tipo de documento, la cuenta de banco y la fecha son obligatorios.");
+            return;
+        }
 
         setIsAccounting(true);
-        const res = await processBankExpenses(periodId);
+        const res = await processBankExpenses(periodId, {
+            documentId: Number(accountingForm.documentId),
+            bankAccountCode: accountingForm.bankAccountCode,
+            date: accountingForm.date,
+            observations: accountingForm.observations
+        });
         setIsAccounting(false);
 
         if (res.success) {
             toast.success(res.message);
             if (res.warning) toast.warning(res.warning);
+            setAccountingModalOpen(false);
             loadPeriodData();
         } else {
             toast.error(res.error);
@@ -304,10 +365,6 @@ export default function PeriodDetailPage() {
                 </div>
                 {view === "list" && (
                     <div className="flex gap-2">
-                        <Button onClick={handleProcessExpenses} disabled={isAccounting} variant="secondary">
-                            {isAccounting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <FileSpreadsheet className="w-4 h-4 mr-2" />}
-                            Contabilizar Gastos
-                        </Button>
                         <Button onClick={() => setView("upload")}>
                             <Upload className="w-4 h-4 mr-2" />
                             Cargar Más Transacciones
@@ -353,7 +410,7 @@ export default function PeriodDetailPage() {
                                     <CardDescription>Resumen por concepto según reglas</CardDescription>
                                 </div>
                                 <div className="text-right">
-                                    <div className="text-2xl font-bold text-green-700">{formatCurrency(consolidatedData?.totalMatched || 0)}</div>
+                                    <div className="text-2xl font-bold text-green-700">{formatCurrency(consolidatedData?.totalMatchedSum || 0)}</div>
                                     <div className="text-xs text-muted-foreground">{consolidatedData?.totalMatchedCount || 0} movimientos</div>
                                 </div>
                             </CardHeader>
@@ -375,10 +432,22 @@ export default function PeriodDetailPage() {
                                             ) : (
                                                 consolidatedData?.consolidated?.map((c: any) => (
                                                     <TableRow key={c.conceptId}>
-                                                        <TableCell className="font-medium">{c.conceptAlias}</TableCell>
+                                                        <TableCell className="font-medium">
+                                                            {c.conceptAlias}
+                                                            {c.vouchers.length > 0 && (
+                                                                <div className="text-[10px] bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded border border-blue-100 w-fit mt-1 font-bold">
+                                                                    Siigo: {c.vouchers.join(", ")}
+                                                                </div>
+                                                            )}
+                                                        </TableCell>
                                                         <TableCell className="text-xs">
                                                             <div className="font-mono">{c.accountCode}</div>
-                                                            <div className="text-gray-500">{c.accountName}</div>
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="text-gray-500">{c.accountName}</span>
+                                                                {c.pendingCount > 0 && <Badge variant="secondary" className="h-4 text-[9px] px-1 bg-yellow-100 text-yellow-700 border-yellow-200">{c.pendingCount} pend.</Badge>}
+                                                                {c.approvedCount > 0 && <Badge variant="secondary" className="h-4 text-[9px] px-1 bg-green-100 text-green-700 border-green-200">{c.approvedCount} apr.</Badge>}
+                                                                {c.reconciledCount > 0 && <Badge variant="secondary" className="h-4 text-[9px] px-1 bg-blue-100 text-blue-700 border-blue-200">{c.reconciledCount} cont.</Badge>}
+                                                            </div>
                                                         </TableCell>
                                                         <TableCell className={`text-right font-bold ${c.total < 0 ? "text-red-700" : "text-green-700"}`}>
                                                             {formatCurrency(c.total)}
@@ -389,15 +458,42 @@ export default function PeriodDetailPage() {
                                         </TableBody>
                                     </Table>
                                 </div>
-                                <div className="mt-4">
-                                    <Button
-                                        className="w-full bg-green-600 hover:bg-green-700"
-                                        onClick={handleApprove}
-                                        disabled={isApproving || consolidatedData?.consolidated?.length === 0}
-                                    >
-                                        {isApproving ? <Loader2 className="animate-spin mr-2" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
-                                        Vincular y Aprobar Gastos Seleccionados
-                                    </Button>
+                                <div className="mt-4 space-y-4">
+                                    <div className="p-3 bg-blue-50/50 rounded-lg border border-blue-100">
+                                        <h4 className="text-sm font-bold text-blue-900 mb-1 flex items-center gap-2">
+                                            <div className="w-5 h-5 rounded-full bg-blue-100 flex items-center justify-center text-[10px]">1</div>
+                                            Preparación
+                                        </h4>
+                                        <p className="text-[11px] text-blue-700 mb-2">
+                                            Identifica y aprueba los movimientos detectados por las reglas.
+                                        </p>
+                                        <Button
+                                            className="w-full bg-blue-600 hover:bg-blue-700 text-white shadow-sm"
+                                            onClick={handleApprove}
+                                            disabled={isApproving || !consolidatedData?.consolidated?.some((c: any) => c.pendingCount > 0)}
+                                        >
+                                            {isApproving ? <Loader2 className="animate-spin mr-2" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
+                                            Aprobar {consolidatedData?.totalPendingCount} Movimientos
+                                        </Button>
+                                    </div>
+
+                                    <div className="p-3 bg-slate-50/50 rounded-lg border border-slate-200">
+                                        <h4 className="text-sm font-bold text-slate-900 mb-1 flex items-center gap-2">
+                                            <div className="w-5 h-5 rounded-full bg-slate-200 flex items-center justify-center text-[10px]">2</div>
+                                            Envío a Siigo
+                                        </h4>
+                                        <p className="text-[11px] text-slate-600 mb-2">
+                                            Genera un comprobante contable resumido en Siigo con los movimientos aprobados.
+                                        </p>
+                                        <Button
+                                            className="w-full bg-slate-800 hover:bg-slate-900 text-white shadow-sm"
+                                            onClick={handleOpenAccountingModal}
+                                            disabled={isAccounting || !consolidatedData?.consolidated?.some((c: any) => c.approvedCount > 0)}
+                                        >
+                                            {isAccounting ? <Loader2 className="animate-spin mr-2" /> : <FileSpreadsheet className="mr-2 h-4 w-4" />}
+                                            {consolidatedData?.totalApprovedCount > 0 ? `Contabilizar ${consolidatedData.totalApprovedCount} en Siigo` : "Contabilizar en Siigo"}
+                                        </Button>
+                                    </div>
                                 </div>
                             </CardContent>
                         </Card>
@@ -479,6 +575,80 @@ export default function PeriodDetailPage() {
                             </CardContent>
                         </Card>
                     </div>
+
+                    {/* Accounting Modal */}
+                    <Dialog open={accountingModalOpen} onOpenChange={setAccountingModalOpen}>
+                        <DialogContent className="sm:max-w-[450px]">
+                            <DialogHeader>
+                                <DialogTitle>Generar Comprobante en Siigo</DialogTitle>
+                                <DialogDescription>
+                                    Confirma los datos para el envío contable a Siigo Nube.
+                                </DialogDescription>
+                            </DialogHeader>
+                            <div className="grid gap-4 py-4">
+                                <div className="space-y-2">
+                                    <Label>Tipo de Documento (CC)</Label>
+                                    <select
+                                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                                        value={accountingForm.documentId}
+                                        onChange={(e) => setAccountingForm({ ...accountingForm, documentId: e.target.value })}
+                                    >
+                                        <option value="">Selecciona un tipo...</option>
+                                        {documentTypes.map((t: any) => (
+                                            <option key={t.id} value={t.id}>
+                                                {t.code} - {t.name}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div className="space-y-2">
+                                    <Label>Cuenta de Banco (Salida)</Label>
+                                    <AccountSelector
+                                        value={accountingForm.bankAccountCode}
+                                        onSelect={(code) => setAccountingForm({ ...accountingForm, bankAccountCode: code })}
+                                    />
+                                    <p className="text-[10px] text-muted-foreground italic">Cuenta de donde sale el dinero (Crédito).</p>
+                                </div>
+                                <div className="space-y-2">
+                                    <Label>Fecha del Comprobante</Label>
+                                    <Input
+                                        type="date"
+                                        value={accountingForm.date}
+                                        onChange={(e) => setAccountingForm({ ...accountingForm, date: e.target.value })}
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label>Observaciones (Opcional)</Label>
+                                    <textarea
+                                        className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                                        value={accountingForm.observations}
+                                        onChange={(e) => setAccountingForm({ ...accountingForm, observations: e.target.value })}
+                                        placeholder="Descripción para el resumen de movimientos..."
+                                    />
+                                </div>
+                                <div className="p-3 bg-blue-50 border border-blue-200 rounded-md">
+                                    <div className="flex justify-between items-center mb-1">
+                                        <span className="text-[11px] font-bold text-blue-800 uppercase tracking-wider">A Contabilizar:</span>
+                                        <span className="text-sm font-bold text-blue-900">{formatCurrency(Math.abs(consolidatedData?.totalApprovedSum || 0))}</span>
+                                    </div>
+                                    <p className="text-[10px] text-blue-700 leading-tight">
+                                        Se generará un comprobante único en Siigo que resume los {consolidatedData?.totalApprovedCount || 0} movimientos aprobados.
+                                    </p>
+                                </div>
+                            </div>
+                            <DialogFooter>
+                                <Button variant="outline" onClick={() => setAccountingModalOpen(false)}>Cancelar</Button>
+                                <Button
+                                    className="bg-slate-800 hover:bg-slate-900"
+                                    onClick={handleProcessExpenses}
+                                    disabled={isAccounting}
+                                >
+                                    {isAccounting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                                    Confirmar y Enviar a Siigo
+                                </Button>
+                            </DialogFooter>
+                        </DialogContent>
+                    </Dialog>
 
                     {/* New Concept Modal */}
                     <Dialog open={conceptModalOpen} onOpenChange={setConceptModalOpen}>
