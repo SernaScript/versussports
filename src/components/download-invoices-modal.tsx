@@ -14,6 +14,7 @@ import {
     DialogTitle,
 } from "@/components/ui/dialog";
 import { scrapeUrl } from "@/app/actions/scraping";
+import { downloadAllReceivedInvoices } from "@/app/actions/download-invoices";
 
 interface DownloadInvoicesModalProps {
     open: boolean;
@@ -28,9 +29,15 @@ export function DownloadInvoicesModal({
 }: DownloadInvoicesModalProps) {
     const [url, setUrl] = useState("");
     const [isScraping, setIsScraping] = useState(false);
+    const [isDownloading, setIsDownloading] = useState(false);
     const [errorMessage, setErrorMessage] = useState<string>("");
     const [successMessage, setSuccessMessage] = useState<string>("");
     const [scrapingResult, setScrapingResult] = useState<any>(null);
+    const [downloadSummary, setDownloadSummary] = useState<{
+        success: number;
+        failed: number;
+        errors: Array<{ cufe: string; error: string }>;
+    } | null>(null);
 
     const handleScrape = async () => {
         if (!url.trim()) {
@@ -49,8 +56,40 @@ export function DownloadInvoicesModal({
             if (result.success) {
                 setSuccessMessage("Scraping completado exitosamente");
                 setScrapingResult(result);
-                if (onSuccess) {
-                    onSuccess(result);
+                
+                // Automáticamente ejecutar descarga de facturas después del scraping
+                setIsDownloading(true);
+                setDownloadSummary(null);
+                
+                try {
+                    // Pasar la URL del usuario a la función de descarga
+                    const downloadResult = await downloadAllReceivedInvoices(url.trim());
+                    setDownloadSummary(downloadResult);
+                    
+                    if (downloadResult.success > 0) {
+                        setSuccessMessage(
+                            `Scraping y descarga completados. ${downloadResult.success} factura(s) descargada(s) exitosamente.`
+                        );
+                    } else if (downloadResult.failed > 0) {
+                        setSuccessMessage(
+                            `Scraping completado. No se pudieron descargar ${downloadResult.failed} factura(s).`
+                        );
+                    } else {
+                        setSuccessMessage("Scraping completado. No hay facturas pendientes de descarga.");
+                    }
+                    
+                    if (onSuccess) {
+                        onSuccess({ scraping: result, download: downloadResult });
+                    }
+                } catch (downloadError) {
+                    console.error("Error en descarga de facturas:", downloadError);
+                    setErrorMessage(
+                        `Scraping exitoso, pero error al descargar facturas: ${
+                            downloadError instanceof Error ? downloadError.message : "Error desconocido"
+                        }`
+                    );
+                } finally {
+                    setIsDownloading(false);
                 }
             } else {
                 setErrorMessage(result.error || "Error al realizar el scraping");
@@ -68,11 +107,12 @@ export function DownloadInvoicesModal({
     };
 
     const handleClose = () => {
-        if (!isScraping) {
+        if (!isScraping && !isDownloading) {
             setUrl("");
             setErrorMessage("");
             setSuccessMessage("");
             setScrapingResult(null);
+            setDownloadSummary(null);
             onOpenChange(false);
         }
     };
@@ -83,8 +123,8 @@ export function DownloadInvoicesModal({
                 <DialogHeader>
                     <DialogTitle>Descargar Facturas</DialogTitle>
                     <DialogDescription>
-                        Ingrese la URL de la página que desea analizar. El sistema realizará scraping
-                        y capturará las solicitudes HTTP realizadas.
+                        Ingrese la URL de la página de la DIAN. El sistema realizará scraping y
+                        automáticamente descargará las facturas recibidas que aún no han sido descargadas.
                     </DialogDescription>
                 </DialogHeader>
 
@@ -100,10 +140,22 @@ export function DownloadInvoicesModal({
                                 setUrl(e.target.value);
                                 setErrorMessage("");
                             }}
-                            disabled={isScraping}
+                            disabled={isScraping || isDownloading}
                             className="font-mono text-sm"
                         />
                     </div>
+
+                    {(isScraping || isDownloading) && (
+                        <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
+                            <div className="flex items-center gap-2">
+                                <Loader2 className="h-5 w-5 text-blue-600 animate-spin" />
+                                <p className="text-sm text-blue-800">
+                                    {isScraping && "Analizando página..."}
+                                    {isDownloading && "Descargando facturas desde la DIAN..."}
+                                </p>
+                            </div>
+                        </div>
+                    )}
 
                     {errorMessage && (
                         <div className="bg-destructive/10 border border-destructive/20 rounded-md p-4">
@@ -170,24 +222,66 @@ export function DownloadInvoicesModal({
                             </div>
                         </div>
                     )}
+
+                    {downloadSummary && (
+                        <div className="bg-slate-50 border border-slate-200 rounded-md p-4">
+                            <p className="text-sm font-semibold text-slate-800 mb-2">
+                                Resumen de Descarga
+                            </p>
+                            <div className="space-y-1 text-xs text-slate-700">
+                                <p>
+                                    <strong className="text-green-700">
+                                        ✓ Exitosas: {downloadSummary.success}
+                                    </strong>
+                                </p>
+                                {downloadSummary.failed > 0 && (
+                                    <>
+                                        <p>
+                                            <strong className="text-red-700">
+                                                ✗ Fallidas: {downloadSummary.failed}
+                                            </strong>
+                                        </p>
+                                        {downloadSummary.errors.length > 0 && (
+                                            <div className="mt-2 max-h-40 overflow-y-auto">
+                                                <p className="font-semibold mb-1">Errores:</p>
+                                                <div className="space-y-1">
+                                                    {downloadSummary.errors.slice(0, 5).map((err, idx) => (
+                                                        <p key={idx} className="text-red-600 font-mono text-xs">
+                                                            {err.cufe}: {err.error.substring(0, 50)}
+                                                            {err.error.length > 50 ? "..." : ""}
+                                                        </p>
+                                                    ))}
+                                                    {downloadSummary.errors.length > 5 && (
+                                                        <p className="text-slate-500">
+                                                            ... y {downloadSummary.errors.length - 5} error(es) más
+                                                        </p>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </>
+                                )}
+                            </div>
+                        </div>
+                    )}
                 </div>
 
                 <DialogFooter>
                     <Button
                         variant="outline"
                         onClick={handleClose}
-                        disabled={isScraping}
+                        disabled={isScraping || isDownloading}
                     >
                         Cancelar
                     </Button>
                     <Button
                         onClick={handleScrape}
-                        disabled={!url.trim() || isScraping}
+                        disabled={!url.trim() || isScraping || isDownloading}
                     >
-                        {isScraping ? (
+                        {(isScraping || isDownloading) ? (
                             <>
                                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                Analizando...
+                                {isScraping ? "Analizando..." : "Descargando..."}
                             </>
                         ) : (
                             <>

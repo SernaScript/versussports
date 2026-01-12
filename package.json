@@ -34,7 +34,8 @@
     "tailwindcss-animate": "^1.0.7",
     "xlsx": "^0.18.5",
     "zod": "^4.3.5",
-    "playwright": "^1.48.0"
+    "playwright": "^1.48.0",
+    "adm-zip": "^0.5.16"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
@@ -42,6 +43,7 @@
     "@types/pg": "^8.16.0",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@types/adm-zip": "^0.5.5",
     "@playwright/test": "^1.48.0",
     "eslint": "^9",
     "eslint-config-next": "16.1.1",

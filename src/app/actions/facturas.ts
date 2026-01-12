@@ -105,10 +105,46 @@ export async function saveDianInvoices(invoices: ProcessedDianInvoice[]) {
 
         for (const invoice of formattedInvoices) {
             try {
+                // Al actualizar, no sobrescribir los campos de tracking (isDownloaded, isAccounted, XMLURL, PDFURL)
+                // Estos campos se mantienen con sus valores actuales en la BD
                 await prisma.dianInvoice.upsert({
                     where: { id: invoice.id },
-                    update: invoice,
-                    create: invoice,
+                    update: {
+                        // Solo actualizar campos de datos de factura, no campos de tracking
+                        documentType: invoice.documentType,
+                        folio: invoice.folio,
+                        prefix: invoice.prefix,
+                        issueDate: invoice.issueDate,
+                        issuerNit: invoice.issuerNit,
+                        issuerName: invoice.issuerName,
+                        receiverNit: invoice.receiverNit,
+                        receiverName: invoice.receiverName,
+                        vat: invoice.vat,
+                        inc: invoice.inc,
+                        total: invoice.total,
+                        group: invoice.group,
+                        currency: invoice.currency,
+                        paymentMethod: invoice.paymentMethod,
+                        paymentMedium: invoice.paymentMedium,
+                        receptionDate: invoice.receptionDate,
+                        ica: invoice.ica,
+                        ic: invoice.ic,
+                        stamp: invoice.stamp,
+                        incBags: invoice.incBags,
+                        carbonTax: invoice.carbonTax,
+                        fuelTax: invoice.fuelTax,
+                        dataTax: invoice.dataTax,
+                        icl: invoice.icl,
+                        inpp: invoice.inpp,
+                        ibua: invoice.ibua,
+                        icui: invoice.icui,
+                        withheldVat: invoice.withheldVat,
+                        withheldIncome: invoice.withheldIncome,
+                        withheldIca: invoice.withheldIca,
+                        status: invoice.status,
+                        // Los campos isDownloaded, isAccounted, XMLURL, PDFURL se mantienen con sus valores actuales
+                    },
+                    create: invoice, // Al crear, incluir todos los campos con valores por defecto
                 });
                 savedCount++;
             } catch (error) {
