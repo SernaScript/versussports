@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { Receipt, Upload, Calendar, Building2, FileText } from "lucide-react";
+import { Receipt, Upload, Calendar, Building2, FileText, Download } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { ProcessedDianInvoice } from "./utils/dian-file-validator";
 import { getDianInvoices } from "@/app/actions/facturas";
 import { UploadDianModal } from "@/components/upload-dian-modal";
+import { DownloadInvoicesModal } from "@/components/download-invoices-modal";
 
 type ItemsPerPage = 20 | 40 | 60;
 
@@ -19,6 +20,7 @@ export default function FacturasPage() {
     const [currentPage, setCurrentPage] = useState(1);
     const [isLoading, setIsLoading] = useState(true);
     const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
+    const [isDownloadModalOpen, setIsDownloadModalOpen] = useState(false);
 
     useEffect(() => {
         // Load invoices from database
@@ -224,10 +226,19 @@ export default function FacturasPage() {
                         Visualización de facturas cargadas desde archivos Excel de la DIAN.
                     </p>
                 </div>
-                <Button onClick={() => setIsUploadModalOpen(true)}>
-                    <Upload className="mr-2 h-4 w-4" />
-                    Subir Excel DIAN
-                </Button>
+                <div className="flex items-center gap-3">
+                    <Button
+                        variant="outline"
+                        onClick={() => setIsDownloadModalOpen(true)}
+                    >
+                        <Download className="mr-2 h-4 w-4" />
+                        Descargar Facturas
+                    </Button>
+                    <Button onClick={() => setIsUploadModalOpen(true)}>
+                        <Upload className="mr-2 h-4 w-4" />
+                        Subir Excel DIAN
+                    </Button>
+                </div>
             </div>
 
             <Card className="shadow-lg">
@@ -426,6 +437,15 @@ export default function FacturasPage() {
                 open={isUploadModalOpen}
                 onOpenChange={setIsUploadModalOpen}
                 onUploadSuccess={handleUploadSuccess}
+            />
+
+            <DownloadInvoicesModal
+                open={isDownloadModalOpen}
+                onOpenChange={setIsDownloadModalOpen}
+                onSuccess={(data) => {
+                    console.log("Scraping completado:", data);
+                    // Aquí puedes procesar los datos del scraping si es necesario
+                }}
             />
         </div >
     );

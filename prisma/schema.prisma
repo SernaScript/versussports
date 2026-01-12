@@ -80,6 +80,12 @@ model DianInvoice {
   withheldIca       Decimal? @map("withheld_ica") @db.Decimal(15, 2)
   status             String?
 
+  // New fields for download and accounting tracking
+  isAccounted        Boolean  @default(false) @map("is_accounted")
+  isDownloaded       Boolean  @default(false) @map("is_downloaded")
+  XMLURL             String?  @map("xml_url")
+  PDFURL             String?  @map("pdf_url")
+
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
