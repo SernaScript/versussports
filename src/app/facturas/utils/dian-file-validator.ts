@@ -93,6 +93,7 @@ export interface ProcessedDianInvoice {
     inc: number;
     total: number;
     group: string;
+    pdfUrl?: string;
     [key: string]: any; // For additional columns
 }
 
@@ -232,7 +233,7 @@ export function processDianFile(file: File): Promise<ProcessedDianInvoice[]> {
                 }
 
                 const workbook = XLSX.read(data, { type: "array" });
-                
+
                 if (workbook.SheetNames.length === 0) {
                     reject(new Error("El archivo no contiene hojas de cálculo"));
                     return;
@@ -249,9 +250,9 @@ export function processDianFile(file: File): Promise<ProcessedDianInvoice[]> {
                 }
 
                 // Convert to JSON
-                const rawData = XLSX.utils.sheet_to_json(worksheet, { 
+                const rawData = XLSX.utils.sheet_to_json(worksheet, {
                     defval: null,
-                    raw: false 
+                    raw: false
                 }) as any[];
 
                 if (rawData.length === 0) {
@@ -305,7 +306,7 @@ export function processDianFile(file: File): Promise<ProcessedDianInvoice[]> {
 
                         // Try exact match first
                         let mappedKey = COLUMN_MAPPING[header];
-                        
+
                         // If no exact match, try flexible matching
                         if (!mappedKey) {
                             // Find matching column in mapping
@@ -315,7 +316,7 @@ export function processDianFile(file: File): Promise<ProcessedDianInvoice[]> {
                                     break;
                                 }
                             }
-                            
+
                             // If still no match, use a sanitized version of the header
                             if (!mappedKey) {
                                 mappedKey = normalizedHeader
@@ -323,9 +324,9 @@ export function processDianFile(file: File): Promise<ProcessedDianInvoice[]> {
                                     .replace(/[^a-z0-9]/g, "");
                             }
                         }
-                        
+
                         const value = row[header] ?? null;
-                        
+
                         // Type conversion for numeric fields
                         if (["vat", "inc", "total", "ica", "ic", "withheldvat", "withheldincome", "withheldica"].includes(mappedKey.toLowerCase())) {
                             normalizedRow[mappedKey] = parseNumericValue(value);

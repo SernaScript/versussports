@@ -210,11 +210,11 @@ async function processDownloadedZip(zipPath: string, cufe: string): Promise<Proc
             if (entryName.endsWith(".xml")) {
                 targetDir = xmlDir;
                 fileName = `${cufe}.xml`;
-                relativePath = `downloads/XML/${fileName}`;
+                relativePath = `/api/downloads/XML/${fileName}`;
             } else if (entryName.endsWith(".pdf")) {
                 targetDir = pdfDir;
                 fileName = `${cufe}.pdf`;
-                relativePath = `downloads/PDF/${fileName}`;
+                relativePath = `/api/downloads/PDF/${fileName}`;
             }
 
             if (targetDir && relativePath && fileName) {

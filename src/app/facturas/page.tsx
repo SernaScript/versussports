@@ -11,6 +11,8 @@ import { ProcessedDianInvoice } from "./utils/dian-file-validator";
 import { getDianInvoices } from "@/app/actions/facturas";
 import { UploadDianModal } from "@/components/upload-dian-modal";
 import { DownloadInvoicesModal } from "@/components/download-invoices-modal";
+import { PDFViewerModal } from "@/components/pdf-viewer-modal";
+import { Eye } from "lucide-react";
 
 type ItemsPerPage = 20 | 40 | 60;
 
@@ -21,6 +23,8 @@ export default function FacturasPage() {
     const [isLoading, setIsLoading] = useState(true);
     const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
     const [isDownloadModalOpen, setIsDownloadModalOpen] = useState(false);
+    const [selectedPdfUrl, setSelectedPdfUrl] = useState<string | null>(null);
+    const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
 
     useEffect(() => {
         // Load invoices from database
@@ -29,6 +33,15 @@ export default function FacturasPage() {
             try {
                 const result = await getDianInvoices();
                 if (result.success && result.data) {
+                    // Debug: verificar el primer invoice para ver qué campos tiene
+                    if (result.data.length > 0) {
+                        console.log("Primer invoice desde getDianInvoices:", {
+                            id: result.data[0].id,
+                            pdfUrl: result.data[0].pdfUrl,
+                            PDFURL: result.data[0].PDFURL,
+                            pdf_url: result.data[0].pdf_url,
+                        });
+                    }
                     // Convert database format to ProcessedDianInvoice format
                     const convertedInvoices: ProcessedDianInvoice[] = result.data.map((dbInvoice: any) => ({
                         id: dbInvoice.id,
@@ -65,6 +78,7 @@ export default function FacturasPage() {
                         status: dbInvoice.status || undefined,
                         isDownloaded: Boolean(dbInvoice.isDownloaded || dbInvoice.is_downloaded),
                         isAccounted: Boolean(dbInvoice.isAccounted || dbInvoice.is_accounted),
+                        pdfUrl: dbInvoice.pdfUrl || undefined,
                     }));
                     setInvoices(convertedInvoices);
                 } else {
@@ -163,9 +177,9 @@ export default function FacturasPage() {
         try {
             const date = new Date(dateString);
             return new Intl.DateTimeFormat("es-CO", {
-                year: "numeric",
-                month: "short",
-                day: "numeric",
+                year: "2-digit",
+                month: "2-digit",
+                day: "2-digit",
             }).format(date);
         } catch {
             return "-";
@@ -177,6 +191,7 @@ export default function FacturasPage() {
         try {
             const result = await getDianInvoices();
             if (result.success && result.data) {
+                console.log("Raw invoice data from DB:", result.data[0]);
                 const convertedInvoices: ProcessedDianInvoice[] = result.data.map((dbInvoice: any) => ({
                     id: dbInvoice.id,
                     documentType: dbInvoice.documentType,
@@ -212,6 +227,7 @@ export default function FacturasPage() {
                     status: dbInvoice.status || undefined,
                     isDownloaded: Boolean(dbInvoice.isDownloaded || dbInvoice.is_downloaded),
                     isAccounted: Boolean(dbInvoice.isAccounted || dbInvoice.is_accounted),
+                    pdfUrl: dbInvoice.pdfUrl || undefined,
                 }));
                 setInvoices(convertedInvoices);
             }
@@ -301,13 +317,14 @@ export default function FacturasPage() {
                                 <Table>
                                     <TableHeader>
                                         <TableRow className="bg-slate-50/50 hover:bg-slate-50/50">
-                                            <TableHead className="font-semibold">Fecha</TableHead>
-                                            <TableHead className="font-semibold">Nombre Emisor</TableHead>
-                                            <TableHead className="text-right font-semibold">IVA</TableHead>
-                                            <TableHead className="text-right font-semibold">INC</TableHead>
-                                            <TableHead className="text-right font-semibold">Total</TableHead>
-                                            <TableHead className="text-center font-semibold">Descargado</TableHead>
-                                            <TableHead className="text-center font-semibold">Contabilizado</TableHead>
+                                            <TableHead className="font-semibold border-r text-center">Fecha</TableHead>
+                                            <TableHead className="font-semibold border-r text-center">Nombre Emisor</TableHead>
+                                            <TableHead className="font-semibold border-r text-center">IVA</TableHead>
+                                            <TableHead className="font-semibold border-r text-center">INC</TableHead>
+                                            <TableHead className="font-semibold border-r text-center">Total</TableHead>
+                                            <TableHead className="text-center font-semibold border-r">Descargado</TableHead>
+                                            <TableHead className="text-center font-semibold border-r">Contabilizado</TableHead>
+                                            <TableHead className="text-center font-semibold text-center">Acciones</TableHead>
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
@@ -317,13 +334,13 @@ export default function FacturasPage() {
                                                     key={invoice.id}
                                                     className="hover:bg-slate-50/50 transition-colors border-b"
                                                 >
-                                                    <TableCell className="text-sm">
+                                                    <TableCell className="text-sm border-r">
                                                         <div className="flex items-center gap-1.5 text-muted-foreground">
                                                             <Calendar className="h-3.5 w-3.5" />
                                                             {invoice.issueDate ? formatDate(invoice.issueDate) : "-"}
                                                         </div>
                                                     </TableCell>
-                                                    <TableCell className="max-w-[280px]">
+                                                    <TableCell className="max-w-[280px] border-r">
                                                         <div className="flex flex-col gap-1">
                                                             <div className="flex items-center gap-2">
                                                                 <Building2 className="h-4 w-4 text-muted-foreground flex-shrink-0" />
@@ -336,22 +353,22 @@ export default function FacturasPage() {
                                                             </span>
                                                         </div>
                                                     </TableCell>
-                                                    <TableCell className="text-right text-sm">
+                                                    <TableCell className="text-right text-sm border-r">
                                                         <span className="text-muted-foreground">
                                                             {formatCurrency(invoice.vat || 0)}
                                                         </span>
                                                     </TableCell>
-                                                    <TableCell className="text-right text-sm">
+                                                    <TableCell className="text-right text-sm border-r">
                                                         <span className="text-muted-foreground">
                                                             {formatCurrency(invoice.inc || 0)}
                                                         </span>
                                                     </TableCell>
-                                                    <TableCell className="text-right">
-                                                        <span className="font-semibold text-base text-primary">
+                                                    <TableCell className="text-right border-r">
+                                                        <span className="font-semibold text-sm text-primary">
                                                             {formatCurrency(invoice.total || 0)}
                                                         </span>
                                                     </TableCell>
-                                                    <TableCell className="text-center">
+                                                    <TableCell className="text-center border-r">
                                                         <div title={invoice.isDownloaded ? "Descargado" : "No descargado"}>
                                                             {invoice.isDownloaded ? (
                                                                 <CheckCircle2 className="h-5 w-5 text-green-600 mx-auto" />
@@ -360,7 +377,7 @@ export default function FacturasPage() {
                                                             )}
                                                         </div>
                                                     </TableCell>
-                                                    <TableCell className="text-center">
+                                                    <TableCell className="text-center border-r">
                                                         <div title={invoice.isAccounted ? "Contabilizado" : "No contabilizado"}>
                                                             {invoice.isAccounted ? (
                                                                 <CheckCircle2 className="h-5 w-5 text-blue-600 mx-auto" />
@@ -369,12 +386,31 @@ export default function FacturasPage() {
                                                             )}
                                                         </div>
                                                     </TableCell>
+                                                    <TableCell className="text-center">
+                                                        {invoice.pdfUrl ? (
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="icon"
+                                                                onClick={() => {
+                                                                    console.log("🔍 Abriendo PDF con URL:", invoice.pdfUrl);
+                                                                    setSelectedPdfUrl(invoice.pdfUrl || null);
+                                                                    setIsPdfModalOpen(true);
+                                                                }}
+                                                                title="Ver PDF"
+                                                                className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                                                            >
+                                                                <Eye className="h-4 w-4" />
+                                                            </Button>
+                                                        ) : (
+                                                            <span className="text-xs text-muted-foreground">-</span>
+                                                        )}
+                                                    </TableCell>
                                                 </TableRow>
                                             ))
                                         ) : (
                                             <TableRow>
                                                 <TableCell
-                                                    colSpan={7}
+                                                    colSpan={8}
                                                     className="text-center py-12 text-muted-foreground"
                                                 >
                                                     <div className="flex flex-col items-center gap-2">
@@ -464,6 +500,13 @@ export default function FacturasPage() {
                 open={isDownloadModalOpen}
                 onOpenChange={setIsDownloadModalOpen}
                 onSuccess={handleDownloadSuccess}
+            />
+
+            <PDFViewerModal
+                open={isPdfModalOpen}
+                onOpenChange={setIsPdfModalOpen}
+                pdfUrl={selectedPdfUrl}
+                fileName="Factura Electrónica"
             />
         </div >
     );

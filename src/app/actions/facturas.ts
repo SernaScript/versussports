@@ -212,6 +212,11 @@ export async function getDianInvoices() {
             withheldVat: invoice.withheldVat ? Number(invoice.withheldVat) : null,
             withheldIncome: invoice.withheldIncome ? Number(invoice.withheldIncome) : null,
             withheldIca: invoice.withheldIca ? Number(invoice.withheldIca) : null,
+            pdfUrl: invoice.PDFURL 
+                ? invoice.PDFURL.startsWith('/api/downloads/') 
+                    ? invoice.PDFURL 
+                    : invoice.PDFURL.replace(/^downloads\//, '/api/downloads/').replace(/^\/downloads\//, '/api/downloads/')
+                : null,
         }));
 
         return { success: true, data: serializedInvoices };
