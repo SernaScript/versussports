@@ -217,6 +217,11 @@ export async function getDianInvoices() {
                     ? invoice.PDFURL 
                     : invoice.PDFURL.replace(/^downloads\//, '/api/downloads/').replace(/^\/downloads\//, '/api/downloads/')
                 : null,
+            xmlUrl: invoice.XMLURL 
+                ? invoice.XMLURL.startsWith('/api/downloads/') 
+                    ? invoice.XMLURL 
+                    : invoice.XMLURL.replace(/^downloads\//, '/api/downloads/').replace(/^\/downloads\//, '/api/downloads/')
+                : null,
         }));
 
         return { success: true, data: serializedInvoices };

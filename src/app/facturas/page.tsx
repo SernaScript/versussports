@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import { Receipt, Upload, Calendar, Building2, FileText, Download, CheckCircle2, XCircle, Circle } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -12,11 +13,12 @@ import { getDianInvoices } from "@/app/actions/facturas";
 import { UploadDianModal } from "@/components/upload-dian-modal";
 import { DownloadInvoicesModal } from "@/components/download-invoices-modal";
 import { PDFViewerModal } from "@/components/pdf-viewer-modal";
-import { Eye } from "lucide-react";
+import { Eye, FileCode } from "lucide-react";
 
 type ItemsPerPage = 20 | 40 | 60;
 
 export default function FacturasPage() {
+    const router = useRouter();
     const [invoices, setInvoices] = useState<ProcessedDianInvoice[]>([]);
     const [itemsPerPage, setItemsPerPage] = useState<ItemsPerPage>(20);
     const [currentPage, setCurrentPage] = useState(1);
@@ -79,6 +81,7 @@ export default function FacturasPage() {
                         isDownloaded: Boolean(dbInvoice.isDownloaded || dbInvoice.is_downloaded),
                         isAccounted: Boolean(dbInvoice.isAccounted || dbInvoice.is_accounted),
                         pdfUrl: dbInvoice.pdfUrl || undefined,
+                        xmlUrl: dbInvoice.xmlUrl || undefined,
                     }));
                     setInvoices(convertedInvoices);
                 } else {
@@ -228,6 +231,7 @@ export default function FacturasPage() {
                     isDownloaded: Boolean(dbInvoice.isDownloaded || dbInvoice.is_downloaded),
                     isAccounted: Boolean(dbInvoice.isAccounted || dbInvoice.is_accounted),
                     pdfUrl: dbInvoice.pdfUrl || undefined,
+                    xmlUrl: dbInvoice.xmlUrl || undefined,
                 }));
                 setInvoices(convertedInvoices);
             }
@@ -387,23 +391,41 @@ export default function FacturasPage() {
                                                         </div>
                                                     </TableCell>
                                                     <TableCell className="text-center">
-                                                        {invoice.pdfUrl ? (
-                                                            <Button
-                                                                variant="ghost"
-                                                                size="icon"
-                                                                onClick={() => {
-                                                                    console.log("🔍 Abriendo PDF con URL:", invoice.pdfUrl);
-                                                                    setSelectedPdfUrl(invoice.pdfUrl || null);
-                                                                    setIsPdfModalOpen(true);
-                                                                }}
-                                                                title="Ver PDF"
-                                                                className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                                                            >
-                                                                <Eye className="h-4 w-4" />
-                                                            </Button>
-                                                        ) : (
-                                                            <span className="text-xs text-muted-foreground">-</span>
-                                                        )}
+                                                        <div className="flex items-center justify-center gap-2">
+                                                            {invoice.pdfUrl ? (
+                                                                <Button
+                                                                    variant="ghost"
+                                                                    size="icon"
+                                                                    onClick={() => {
+                                                                        console.log("🔍 Abriendo PDF con URL:", invoice.pdfUrl);
+                                                                        setSelectedPdfUrl(invoice.pdfUrl || null);
+                                                                        setIsPdfModalOpen(true);
+                                                                    }}
+                                                                    title="Ver PDF"
+                                                                    className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                                                                >
+                                                                    <Eye className="h-4 w-4" />
+                                                                </Button>
+                                                            ) : null}
+                                                            {invoice.xmlUrl ? (
+                                                                <Button
+                                                                    variant="ghost"
+                                                                    size="icon"
+                                                                    onClick={() => {
+                                                                        console.log("🔍 Navegando a XML con URL:", invoice.xmlUrl);
+                                                                        const encodedUrl = encodeURIComponent(invoice.xmlUrl || "");
+                                                                        router.push(`/facturas/xml?url=${encodedUrl}`);
+                                                                    }}
+                                                                    title="Ver XML e Items"
+                                                                    className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-50"
+                                                                >
+                                                                    <FileCode className="h-4 w-4" />
+                                                                </Button>
+                                                            ) : null}
+                                                            {!invoice.pdfUrl && !invoice.xmlUrl && (
+                                                                <span className="text-xs text-muted-foreground">-</span>
+                                                            )}
+                                                        </div>
                                                     </TableCell>
                                                 </TableRow>
                                             ))

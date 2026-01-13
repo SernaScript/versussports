@@ -94,6 +94,7 @@ export interface ProcessedDianInvoice {
     total: number;
     group: string;
     pdfUrl?: string;
+    xmlUrl?: string;
     [key: string]: any; // For additional columns
 }
 
