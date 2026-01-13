@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { Receipt, Upload, Calendar, Building2, FileText, Download } from "lucide-react";
+import { Receipt, Upload, Calendar, Building2, FileText, Download, CheckCircle2, XCircle, Circle } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -30,7 +30,7 @@ export default function FacturasPage() {
                 const result = await getDianInvoices();
                 if (result.success && result.data) {
                     // Convert database format to ProcessedDianInvoice format
-                    const convertedInvoices: ProcessedDianInvoice[] = result.data.map((dbInvoice) => ({
+                    const convertedInvoices: ProcessedDianInvoice[] = result.data.map((dbInvoice: any) => ({
                         id: dbInvoice.id,
                         documentType: dbInvoice.documentType,
                         folio: dbInvoice.folio,
@@ -63,6 +63,8 @@ export default function FacturasPage() {
                         withheldIncome: dbInvoice.withheldIncome ? Number(dbInvoice.withheldIncome) : undefined,
                         withheldIca: dbInvoice.withheldIca ? Number(dbInvoice.withheldIca) : undefined,
                         status: dbInvoice.status || undefined,
+                        isDownloaded: Boolean(dbInvoice.isDownloaded || dbInvoice.is_downloaded),
+                        isAccounted: Boolean(dbInvoice.isAccounted || dbInvoice.is_accounted),
                     }));
                     setInvoices(convertedInvoices);
                 } else {
@@ -130,10 +132,15 @@ export default function FacturasPage() {
             return !documentType.includes("application response");
         });
 
-        // Then apply group filter (Always "Recibido")
+        // Then apply group filter (Always "Recibido") or check if it is explicitly downloaded
         result = result.filter((invoice) => {
             const group = invoice.group?.toLowerCase() || "";
-            return group.includes("recibido") || group.includes("recibida");
+            return (
+                group.includes("recibido") ||
+                group.includes("recibida") ||
+                Boolean(invoice.isDownloaded) ||
+                Boolean(invoice.isAccounted)
+            );
         });
 
         return result;
@@ -165,56 +172,64 @@ export default function FacturasPage() {
         }
     };
 
+    const loadInvoicesFromDB = async () => {
+        setIsLoading(true);
+        try {
+            const result = await getDianInvoices();
+            if (result.success && result.data) {
+                const convertedInvoices: ProcessedDianInvoice[] = result.data.map((dbInvoice: any) => ({
+                    id: dbInvoice.id,
+                    documentType: dbInvoice.documentType,
+                    folio: dbInvoice.folio,
+                    prefix: dbInvoice.prefix,
+                    issueDate: dbInvoice.issueDate.toISOString(),
+                    issuerNit: dbInvoice.issuerNit,
+                    issuerName: dbInvoice.issuerName,
+                    receiverNit: dbInvoice.receiverNit,
+                    receiverName: dbInvoice.receiverName,
+                    vat: Number(dbInvoice.vat),
+                    inc: Number(dbInvoice.inc),
+                    total: Number(dbInvoice.total),
+                    group: dbInvoice.group,
+                    currency: dbInvoice.currency || undefined,
+                    paymentMethod: dbInvoice.paymentMethod || undefined,
+                    paymentMedium: dbInvoice.paymentMedium || undefined,
+                    receptionDate: dbInvoice.receptionDate?.toISOString() || undefined,
+                    ica: dbInvoice.ica ? Number(dbInvoice.ica) : undefined,
+                    ic: dbInvoice.ic ? Number(dbInvoice.ic) : undefined,
+                    stamp: dbInvoice.stamp ? Number(dbInvoice.stamp) : undefined,
+                    incBags: dbInvoice.incBags ? Number(dbInvoice.incBags) : undefined,
+                    carbonTax: dbInvoice.carbonTax ? Number(dbInvoice.carbonTax) : undefined,
+                    fuelTax: dbInvoice.fuelTax ? Number(dbInvoice.fuelTax) : undefined,
+                    dataTax: dbInvoice.dataTax ? Number(dbInvoice.dataTax) : undefined,
+                    icl: dbInvoice.icl ? Number(dbInvoice.icl) : undefined,
+                    inpp: dbInvoice.inpp ? Number(dbInvoice.inpp) : undefined,
+                    ibua: dbInvoice.ibua ? Number(dbInvoice.ibua) : undefined,
+                    icui: dbInvoice.icui ? Number(dbInvoice.icui) : undefined,
+                    withheldVat: dbInvoice.withheldVat ? Number(dbInvoice.withheldVat) : undefined,
+                    withheldIncome: dbInvoice.withheldIncome ? Number(dbInvoice.withheldIncome) : undefined,
+                    withheldIca: dbInvoice.withheldIca ? Number(dbInvoice.withheldIca) : undefined,
+                    status: dbInvoice.status || undefined,
+                    isDownloaded: Boolean(dbInvoice.isDownloaded || dbInvoice.is_downloaded),
+                    isAccounted: Boolean(dbInvoice.isAccounted || dbInvoice.is_accounted),
+                }));
+                setInvoices(convertedInvoices);
+            }
+        } catch (error) {
+            console.error("Error loading invoices:", error);
+        } finally {
+            setIsLoading(false);
+        }
+    };
     const handleUploadSuccess = (data: ProcessedDianInvoice[]) => {
         // Reload invoices from database
-        const loadInvoices = async () => {
-            setIsLoading(true);
-            try {
-                const result = await getDianInvoices();
-                if (result.success && result.data) {
-                    const convertedInvoices: ProcessedDianInvoice[] = result.data.map((dbInvoice) => ({
-                        id: dbInvoice.id,
-                        documentType: dbInvoice.documentType,
-                        folio: dbInvoice.folio,
-                        prefix: dbInvoice.prefix,
-                        issueDate: dbInvoice.issueDate.toISOString(),
-                        issuerNit: dbInvoice.issuerNit,
-                        issuerName: dbInvoice.issuerName,
-                        receiverNit: dbInvoice.receiverNit,
-                        receiverName: dbInvoice.receiverName,
-                        vat: Number(dbInvoice.vat),
-                        inc: Number(dbInvoice.inc),
-                        total: Number(dbInvoice.total),
-                        group: dbInvoice.group,
-                        currency: dbInvoice.currency || undefined,
-                        paymentMethod: dbInvoice.paymentMethod || undefined,
-                        paymentMedium: dbInvoice.paymentMedium || undefined,
-                        receptionDate: dbInvoice.receptionDate?.toISOString() || undefined,
-                        ica: dbInvoice.ica ? Number(dbInvoice.ica) : undefined,
-                        ic: dbInvoice.ic ? Number(dbInvoice.ic) : undefined,
-                        stamp: dbInvoice.stamp ? Number(dbInvoice.stamp) : undefined,
-                        incBags: dbInvoice.incBags ? Number(dbInvoice.incBags) : undefined,
-                        carbonTax: dbInvoice.carbonTax ? Number(dbInvoice.carbonTax) : undefined,
-                        fuelTax: dbInvoice.fuelTax ? Number(dbInvoice.fuelTax) : undefined,
-                        dataTax: dbInvoice.dataTax ? Number(dbInvoice.dataTax) : undefined,
-                        icl: dbInvoice.icl ? Number(dbInvoice.icl) : undefined,
-                        inpp: dbInvoice.inpp ? Number(dbInvoice.inpp) : undefined,
-                        ibua: dbInvoice.ibua ? Number(dbInvoice.ibua) : undefined,
-                        icui: dbInvoice.icui ? Number(dbInvoice.icui) : undefined,
-                        withheldVat: dbInvoice.withheldVat ? Number(dbInvoice.withheldVat) : undefined,
-                        withheldIncome: dbInvoice.withheldIncome ? Number(dbInvoice.withheldIncome) : undefined,
-                        withheldIca: dbInvoice.withheldIca ? Number(dbInvoice.withheldIca) : undefined,
-                        status: dbInvoice.status || undefined,
-                    }));
-                    setInvoices(convertedInvoices);
-                }
-            } catch (error) {
-                console.error("Error loading invoices:", error);
-            } finally {
-                setIsLoading(false);
-            }
-        };
-        loadInvoices();
+        loadInvoicesFromDB();
+    };
+
+    const handleDownloadSuccess = (data: any) => {
+        // Reload invoices from database after download
+        console.log("Descarga completada:", data);
+        loadInvoicesFromDB();
     };
 
     return (
@@ -286,14 +301,13 @@ export default function FacturasPage() {
                                 <Table>
                                     <TableHeader>
                                         <TableRow className="bg-slate-50/50 hover:bg-slate-50/50">
-                                            <TableHead className="font-semibold">Número de Factura</TableHead>
-                                            <TableHead className="font-semibold">Tipo de Documento</TableHead>
                                             <TableHead className="font-semibold">Fecha</TableHead>
-                                            <TableHead className="font-semibold">NIT Emisor</TableHead>
                                             <TableHead className="font-semibold">Nombre Emisor</TableHead>
                                             <TableHead className="text-right font-semibold">IVA</TableHead>
                                             <TableHead className="text-right font-semibold">INC</TableHead>
                                             <TableHead className="text-right font-semibold">Total</TableHead>
+                                            <TableHead className="text-center font-semibold">Descargado</TableHead>
+                                            <TableHead className="text-center font-semibold">Contabilizado</TableHead>
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
@@ -303,33 +317,22 @@ export default function FacturasPage() {
                                                     key={invoice.id}
                                                     className="hover:bg-slate-50/50 transition-colors border-b"
                                                 >
-                                                    <TableCell className="font-medium text-sm">
-                                                        <div className="flex items-center gap-2">
-                                                            <FileText className="h-4 w-4 text-muted-foreground" />
-                                                            <span>
-                                                                {invoice.prefix ? `${invoice.prefix}${invoice.folio ? `-${invoice.folio}` : ''}` : (invoice.folio || "-")}
-                                                            </span>
-                                                        </div>
-                                                    </TableCell>
-                                                    <TableCell className="text-sm">
-                                                        <Badge variant="outline" className="font-normal">
-                                                            {invoice.documentType || "-"}
-                                                        </Badge>
-                                                    </TableCell>
                                                     <TableCell className="text-sm">
                                                         <div className="flex items-center gap-1.5 text-muted-foreground">
                                                             <Calendar className="h-3.5 w-3.5" />
                                                             {invoice.issueDate ? formatDate(invoice.issueDate) : "-"}
                                                         </div>
                                                     </TableCell>
-                                                    <TableCell className="whitespace-nowrap text-sm font-mono">
-                                                        {invoice.issuerNit || "-"}
-                                                    </TableCell>
                                                     <TableCell className="max-w-[280px]">
-                                                        <div className="flex items-center gap-2">
-                                                            <Building2 className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                                                            <span className="truncate text-sm">
-                                                                {invoice.issuerName || "-"}
+                                                        <div className="flex flex-col gap-1">
+                                                            <div className="flex items-center gap-2">
+                                                                <Building2 className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                                                                <span className="truncate text-sm font-medium">
+                                                                    {invoice.issuerName || "-"}
+                                                                </span>
+                                                            </div>
+                                                            <span className="text-xs text-muted-foreground pl-6">
+                                                                NIT: {invoice.issuerNit || "-"}
                                                             </span>
                                                         </div>
                                                     </TableCell>
@@ -348,12 +351,30 @@ export default function FacturasPage() {
                                                             {formatCurrency(invoice.total || 0)}
                                                         </span>
                                                     </TableCell>
+                                                    <TableCell className="text-center">
+                                                        <div title={invoice.isDownloaded ? "Descargado" : "No descargado"}>
+                                                            {invoice.isDownloaded ? (
+                                                                <CheckCircle2 className="h-5 w-5 text-green-600 mx-auto" />
+                                                            ) : (
+                                                                <Circle className="h-5 w-5 text-gray-300 mx-auto" strokeWidth={1.5} />
+                                                            )}
+                                                        </div>
+                                                    </TableCell>
+                                                    <TableCell className="text-center">
+                                                        <div title={invoice.isAccounted ? "Contabilizado" : "No contabilizado"}>
+                                                            {invoice.isAccounted ? (
+                                                                <CheckCircle2 className="h-5 w-5 text-blue-600 mx-auto" />
+                                                            ) : (
+                                                                <Circle className="h-5 w-5 text-gray-400 mx-auto" />
+                                                            )}
+                                                        </div>
+                                                    </TableCell>
                                                 </TableRow>
                                             ))
                                         ) : (
                                             <TableRow>
                                                 <TableCell
-                                                    colSpan={8}
+                                                    colSpan={7}
                                                     className="text-center py-12 text-muted-foreground"
                                                 >
                                                     <div className="flex flex-col items-center gap-2">
@@ -442,10 +463,7 @@ export default function FacturasPage() {
             <DownloadInvoicesModal
                 open={isDownloadModalOpen}
                 onOpenChange={setIsDownloadModalOpen}
-                onSuccess={(data) => {
-                    console.log("Scraping completado:", data);
-                    // Aquí puedes procesar los datos del scraping si es necesario
-                }}
+                onSuccess={handleDownloadSuccess}
             />
         </div >
     );
