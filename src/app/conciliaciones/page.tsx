@@ -19,7 +19,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
-
+import { LoadingSection } from "@/components/ui/loading-section";
 import { getBankPeriods, createBankPeriod, saveBankTransactions } from "../actions/conciliaciones";
 
 // Helper to format currency without decimals
@@ -51,6 +51,7 @@ const periodSchema = z.object({
 export default function ConciliacionesPage() {
     const router = useRouter();
     const [periods, setPeriods] = useState<any[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
     const [isCreatePeriodOpen, setIsCreatePeriodOpen] = useState(false);
 
     // File upload states
@@ -70,9 +71,16 @@ export default function ConciliacionesPage() {
     }, []);
 
     const loadPeriods = async () => {
-        const res = await getBankPeriods();
-        if (res.success && res.data) {
-            setPeriods(res.data);
+        setIsLoading(true);
+        try {
+            const res = await getBankPeriods();
+            if (res.success && res.data) {
+                setPeriods(res.data);
+            }
+        } catch (error) {
+            console.error("Error loading periods:", error);
+        } finally {
+            setIsLoading(false);
         }
     };
 
@@ -321,7 +329,13 @@ export default function ConciliacionesPage() {
             </div>
 
             {/* Periodos Table */}
-            {periods.length === 0 ? (
+            {isLoading ? (
+                <Card>
+                    <CardContent className="p-0">
+                        <LoadingSection />
+                    </CardContent>
+                </Card>
+            ) : periods.length === 0 ? (
                 <Card>
                     <CardContent className="flex flex-col items-center justify-center py-16">
                         <CalendarIcon className="w-16 h-16 mb-4 opacity-30" />

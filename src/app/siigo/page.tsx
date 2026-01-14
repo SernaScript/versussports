@@ -29,6 +29,7 @@ import * as z from "zod";
 import { getSiigoCredential, saveSiigoCredential, deleteSiigoCredential, testSiigoConnection } from "../actions/siigo";
 import { Toaster, toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { LoadingSection } from "@/components/ui/loading-section";
 
 const credentialSchema = z.object({
     username: z.string().email("Debe ser un correo electrónico válido"),
@@ -156,11 +157,7 @@ export default function SiigoPage() {
     };
 
     if (loading) {
-        return (
-            <div className="p-8 flex items-center justify-center min-h-[400px]">
-                <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
-            </div>
-        );
+        return <LoadingSection />;
     }
 
     return (

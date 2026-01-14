@@ -14,6 +14,7 @@ import { UploadDianModal } from "@/components/upload-dian-modal";
 import { DownloadInvoicesModal } from "@/components/download-invoices-modal";
 import { PDFViewerModal } from "@/components/pdf-viewer-modal";
 import { Eye, FileCode } from "lucide-react";
+import { LoadingSection } from "@/components/ui/loading-section";
 
 type ItemsPerPage = 20 | 40 | 60;
 
@@ -310,11 +311,7 @@ export default function FacturasPage() {
                 </CardHeader>
                 <CardContent className="p-0">
                     {isLoading ? (
-                        <div className="flex flex-col items-center justify-center py-16 text-center">
-                            <Receipt className="h-16 w-16 text-muted-foreground mb-4 opacity-50 animate-pulse" />
-                            <h3 className="text-lg font-medium mb-2">Cargando facturas...</h3>
-                            <p className="text-sm text-muted-foreground">Por favor espere...</p>
-                        </div>
+                        <LoadingSection />
                     ) : invoices.length > 0 ? (
                         <>
                             <div className="overflow-x-auto">

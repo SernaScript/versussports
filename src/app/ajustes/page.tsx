@@ -24,6 +24,7 @@ import {
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { LoadingSection } from "@/components/ui/loading-section";
 import { cn } from "@/lib/utils";
 
 // --- Main Layout ---
@@ -143,44 +144,44 @@ function VouchersSection() {
                     </div>
                 </CardHeader>
                 <CardContent>
-                    <div className="rounded-md border bg-white overflow-hidden">
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead>Código</TableHead>
-                                    <TableHead>Nombre</TableHead>
-                                    <TableHead>Tipo</TableHead>
-                                    <TableHead>Estado</TableHead>
-                                    <TableHead>ID Interno</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {loading ? (
+                    {loading ? (
+                        <LoadingSection />
+                    ) : (
+                        <div className="rounded-md border bg-white overflow-hidden">
+                            <Table>
+                                <TableHeader>
                                     <TableRow>
-                                        <TableCell colSpan={5} className="text-center py-8"><Loader2 className="mx-auto animate-spin" /></TableCell>
+                                        <TableHead>Código</TableHead>
+                                        <TableHead>Nombre</TableHead>
+                                        <TableHead>Tipo</TableHead>
+                                        <TableHead>Estado</TableHead>
+                                        <TableHead>ID Interno</TableHead>
                                     </TableRow>
-                                ) : types.length === 0 ? (
-                                    <TableRow>
-                                        <TableCell colSpan={5} className="text-center py-8 text-gray-500">No hay comprobantes sincronizados. Haz clic en Sincronizar.</TableCell>
-                                    </TableRow>
-                                ) : (
-                                    types.map((t) => (
-                                        <TableRow key={t.id}>
-                                            <TableCell className="font-medium">{t.code}</TableCell>
-                                            <TableCell>{t.name}</TableCell>
-                                            <TableCell>{t.type}</TableCell>
-                                            <TableCell>
-                                                <Badge variant={t.active ? "outline" : "secondary"}>
-                                                    {t.active ? "Activo" : "Inactivo"}
-                                                </Badge>
-                                            </TableCell>
-                                            <TableCell className="text-xs text-gray-400 font-mono">{t.id}</TableCell>
+                                </TableHeader>
+                                <TableBody>
+                                    {types.length === 0 ? (
+                                        <TableRow>
+                                            <TableCell colSpan={5} className="text-center py-8 text-gray-500">No hay comprobantes sincronizados. Haz clic en Sincronizar.</TableCell>
                                         </TableRow>
-                                    ))
-                                )}
-                            </TableBody>
-                        </Table>
-                    </div>
+                                    ) : (
+                                        types.map((t) => (
+                                            <TableRow key={t.id}>
+                                                <TableCell className="font-medium">{t.code}</TableCell>
+                                                <TableCell>{t.name}</TableCell>
+                                                <TableCell>{t.type}</TableCell>
+                                                <TableCell>
+                                                    <Badge variant={t.active ? "outline" : "secondary"}>
+                                                        {t.active ? "Activo" : "Inactivo"}
+                                                    </Badge>
+                                                </TableCell>
+                                                <TableCell className="text-xs text-gray-400 font-mono">{t.id}</TableCell>
+                                            </TableRow>
+                                        ))
+                                    )}
+                                </TableBody>
+                            </Table>
+                        </div>
+                    )}
                 </CardContent>
             </Card>
         </div>
@@ -317,46 +318,46 @@ function AccountsSection() {
                     </div>
                 </CardHeader>
                 <CardContent>
-                    <div className="rounded-md border bg-white overflow-hidden">
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead>Código</TableHead>
-                                    <TableHead>Nombre</TableHead>
-                                    <TableHead>Categoría / Clase</TableHead>
-                                    <TableHead>Nivel</TableHead>
-                                    <TableHead>Estado</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {loading ? (
+                    {loading ? (
+                        <LoadingSection />
+                    ) : (
+                        <div className="rounded-md border bg-white overflow-hidden">
+                            <Table>
+                                <TableHeader>
                                     <TableRow>
-                                        <TableCell colSpan={5} className="text-center py-8"><Loader2 className="mx-auto animate-spin" /></TableCell>
+                                        <TableHead>Código</TableHead>
+                                        <TableHead>Nombre</TableHead>
+                                        <TableHead>Categoría / Clase</TableHead>
+                                        <TableHead>Nivel</TableHead>
+                                        <TableHead>Estado</TableHead>
                                     </TableRow>
-                                ) : accounts.length === 0 ? (
-                                    <TableRow>
-                                        <TableCell colSpan={5} className="text-center py-8 text-gray-500">
-                                            No hay cuentas registradas. Importa un Excel para comenzar.
-                                        </TableCell>
-                                    </TableRow>
-                                ) : (
-                                    accounts.map((acc) => (
-                                        <TableRow key={acc.code}>
-                                            <TableCell className="font-bold font-mono">{acc.code}</TableCell>
-                                            <TableCell>{acc.name}</TableCell>
-                                            <TableCell>{acc.category || acc.class || "-"}</TableCell>
-                                            <TableCell>{acc.level || "-"}</TableCell>
-                                            <TableCell>
-                                                <Badge variant={acc.active ? "outline" : "secondary"}>
-                                                    {acc.active ? "Activo" : "Inactivo"}
-                                                </Badge>
+                                </TableHeader>
+                                <TableBody>
+                                    {accounts.length === 0 ? (
+                                        <TableRow>
+                                            <TableCell colSpan={5} className="text-center py-8 text-gray-500">
+                                                No hay cuentas registradas. Importa un Excel para comenzar.
                                             </TableCell>
                                         </TableRow>
-                                    ))
-                                )}
-                            </TableBody>
-                        </Table>
-                    </div>
+                                    ) : (
+                                        accounts.map((acc) => (
+                                            <TableRow key={acc.code}>
+                                                <TableCell className="font-bold font-mono">{acc.code}</TableCell>
+                                                <TableCell>{acc.name}</TableCell>
+                                                <TableCell>{acc.category || acc.class || "-"}</TableCell>
+                                                <TableCell>{acc.level || "-"}</TableCell>
+                                                <TableCell>
+                                                    <Badge variant={acc.active ? "outline" : "secondary"}>
+                                                        {acc.active ? "Activo" : "Inactivo"}
+                                                    </Badge>
+                                                </TableCell>
+                                            </TableRow>
+                                        ))
+                                    )}
+                                </TableBody>
+                            </Table>
+                        </div>
+                    )}
                 </CardContent>
             </Card>
         </div>
@@ -456,44 +457,44 @@ function ConceptsSection() {
             </Card>
 
             <div className="rounded-md border bg-white">
-                <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead>Alias</TableHead>
-                            <TableHead>Patrón</TableHead>
-                            <TableHead>Cuenta Contable</TableHead>
-                            <TableHead className="w-[100px]">Acciones</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {loading ? (
+                {loading ? (
+                    <LoadingSection />
+                ) : (
+                    <Table>
+                        <TableHeader>
                             <TableRow>
-                                <TableCell colSpan={4} className="text-center py-8"><Loader2 className="animate-spin mx-auto" /></TableCell>
+                                <TableHead>Alias</TableHead>
+                                <TableHead>Patrón</TableHead>
+                                <TableHead>Cuenta Contable</TableHead>
+                                <TableHead className="w-[100px]">Acciones</TableHead>
                             </TableRow>
-                        ) : concepts.map((concept) => (
-                            <TableRow key={concept.id}>
-                                <TableCell className="font-medium">{concept.alias}</TableCell>
-                                <TableCell><Badge variant="outline">{concept.pattern}</Badge></TableCell>
-                                <TableCell>
-                                    <div className="flex flex-col">
-                                        <span className="font-bold">{concept.accountCode}</span>
-                                        <span className="text-xs text-gray-500">{concept.account?.name}</span>
-                                    </div>
-                                </TableCell>
-                                <TableCell>
-                                    <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        className="text-red-600 hover:bg-red-50"
-                                        onClick={() => handleDelete(concept.id)}
-                                    >
-                                        <Trash2 className="h-4 w-4" />
-                                    </Button>
-                                </TableCell>
-                            </TableRow>
-                        ))}
-                    </TableBody>
-                </Table>
+                        </TableHeader>
+                        <TableBody>
+                            {concepts.map((concept) => (
+                                <TableRow key={concept.id}>
+                                    <TableCell className="font-medium">{concept.alias}</TableCell>
+                                    <TableCell><Badge variant="outline">{concept.pattern}</Badge></TableCell>
+                                    <TableCell>
+                                        <div className="flex flex-col">
+                                            <span className="font-bold">{concept.accountCode}</span>
+                                            <span className="text-xs text-gray-500">{concept.account?.name}</span>
+                                        </div>
+                                    </TableCell>
+                                    <TableCell>
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            className="text-red-600 hover:bg-red-50"
+                                            onClick={() => handleDelete(concept.id)}
+                                        >
+                                            <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                    </TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                )}
             </div>
         </div>
     );
@@ -536,7 +537,7 @@ function GeneralSettingsSection() {
             <Card>
                 <CardContent className="pt-6">
                     {loading ? (
-                        <div className="flex justify-center p-4"><Loader2 className="animate-spin" /></div>
+                        <LoadingSection />
                     ) : (
                         <form onSubmit={handleSaveSettings} className="space-y-4">
                             <div className="space-y-2">
