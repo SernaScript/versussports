@@ -413,153 +413,165 @@ export default function FacturasPage() {
 
             {/* Main Content Area */}
             <div className="flex-1 px-6 pb-6 overflow-hidden">
-                <Card className="h-full flex flex-col border-slate-200 shadow-sm overflow-hidden">
-                    <CardContent className="p-0 flex-1 overflow-auto">
+                <Card className="h-full flex flex-col border-slate-200 shadow-sm overflow-hidden bg-white p-0 gap-0">
+                    <div className="flex-1 overflow-auto relative scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">
                         {isLoading ? (
                             <LoadingSection />
                         ) : invoices.length > 0 ? (
-                            <div className="relative">
-                                <Table>
-                                    <TableHeader className="bg-slate-50/80 sticky top-0 z-10 backdrop-blur-sm">
-                                        <TableRow className="hover:bg-transparent">
-                                            <TableHead className="w-[50px] px-4">
-                                                <div className="flex items-center justify-center">
-                                                    <input
-                                                        type="checkbox"
-                                                        className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-600"
-                                                        onChange={(e) => {
-                                                            if (e.target.checked) {
-                                                                setSelectedInvoices(paginatedInvoices.map(i => i.id || ""));
-                                                            } else {
-                                                                setSelectedInvoices([]);
-                                                            }
-                                                        }}
-                                                    />
-                                                </div>
-                                            </TableHead>
-                                            <TableHead className="text-slate-600 font-semibold py-4">Fecha <ArrowUpDown className="inline h-3 w-3 ml-1" /></TableHead>
-                                            <TableHead className="text-slate-600 font-semibold py-4">Nombre Emisor</TableHead>
-                                            <TableHead className="text-slate-600 font-semibold py-4 text-right">Valor Impuesto</TableHead>
-                                            <TableHead className="text-slate-600 font-semibold py-4 text-right">Total <ArrowUpDown className="inline h-3 w-3 ml-1" /></TableHead>
-                                            <TableHead className="text-slate-600 font-semibold py-4 text-center">Descargado</TableHead>
-                                            <TableHead className="text-slate-600 font-semibold py-4 text-center">Contabilizado</TableHead>
-                                            <TableHead className="text-slate-600 font-semibold py-4 text-center">Acciones</TableHead>
-                                        </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                        {paginatedInvoices.length > 0 ? (
-                                            paginatedInvoices.map((invoice) => (
-                                                <TableRow
-                                                    key={invoice.id}
-                                                    className="hover:bg-blue-50/30 transition-colors group border-b border-slate-100"
-                                                >
-                                                    <TableCell className="px-4">
-                                                        <div className="flex items-center justify-center">
-                                                            <input
-                                                                type="checkbox"
-                                                                checked={selectedInvoices.includes(invoice.id || "")}
-                                                                className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-600"
-                                                                onChange={(e) => {
-                                                                    if (e.target.checked) {
-                                                                        setSelectedInvoices(prev => [...prev, invoice.id || ""]);
-                                                                    } else {
-                                                                        setSelectedInvoices(prev => prev.filter(id => id !== invoice.id));
-                                                                    }
-                                                                }}
-                                                            />
-                                                        </div>
-                                                    </TableCell>
-                                                    <TableCell className="py-4 text-sm text-slate-500">
+                            <table className="w-full border-separate border-spacing-0">
+                                <thead className="sticky top-0 z-30">
+                                    <tr className="bg-slate-50">
+                                        <th className="w-[60px] px-4 py-5 sticky top-0 bg-slate-50 border-b border-slate-200 z-40">
+                                            <div className="flex items-center justify-center">
+                                                <input
+                                                    type="checkbox"
+                                                    className="h-4 w-5 rounded border-slate-300 text-blue-600 focus:ring-blue-600 cursor-pointer"
+                                                    onChange={(e) => {
+                                                        if (e.target.checked) {
+                                                            setSelectedInvoices(paginatedInvoices.map(i => i.id || ""));
+                                                        } else {
+                                                            setSelectedInvoices([]);
+                                                        }
+                                                    }}
+                                                />
+                                            </div>
+                                        </th>
+                                        <th className="w-[140px] text-slate-500 font-bold py-5 px-4 text-[11px] uppercase tracking-widest sticky top-0 bg-slate-50 border-b border-slate-200 text-left z-40">
+                                            Fecha <ArrowUpDown className="inline h-3 w-3 ml-1 text-slate-400" />
+                                        </th>
+                                        <th className="min-w-[250px] text-slate-500 font-bold py-5 px-4 text-[11px] uppercase tracking-widest sticky top-0 bg-slate-50 border-b border-slate-200 text-left z-40">
+                                            Nombre Emisor
+                                        </th>
+                                        <th className="w-[160px] text-slate-500 font-bold py-5 px-4 text-[11px] uppercase tracking-widest sticky top-0 bg-slate-50 border-b border-slate-200 text-right z-40">
+                                            Valor Impuesto
+                                        </th>
+                                        <th className="w-[160px] text-slate-500 font-bold py-5 px-4 text-[11px] uppercase tracking-widest sticky top-0 bg-slate-50 border-b border-slate-200 text-right z-40">
+                                            Total <ArrowUpDown className="inline h-3 w-3 ml-1 text-slate-400" />
+                                        </th>
+                                        <th className="w-[130px] text-slate-500 font-bold py-5 px-4 text-[11px] uppercase tracking-widest sticky top-0 bg-slate-50 border-b border-slate-200 text-center z-40">
+                                            Descargado
+                                        </th>
+                                        <th className="w-[130px] text-slate-500 font-bold py-5 px-4 text-[11px] uppercase tracking-widest sticky top-0 bg-slate-50 border-b border-slate-200 text-center z-40">
+                                            Contabilizado
+                                        </th>
+                                        <th className="w-[120px] text-slate-500 font-bold py-5 px-4 text-[11px] uppercase tracking-widest sticky top-0 bg-slate-50 border-b border-slate-200 text-center z-40">
+                                            Acciones
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {paginatedInvoices.length > 0 ? (
+                                        paginatedInvoices.map((invoice) => (
+                                            <tr
+                                                key={invoice.id}
+                                                className="hover:bg-blue-50/30 transition-colors group border-b border-slate-100"
+                                            >
+                                                <td className="px-4 py-4 whitespace-nowrap">
+                                                    <div className="flex items-center justify-center">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={selectedInvoices.includes(invoice.id || "")}
+                                                            className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-600"
+                                                            onChange={(e) => {
+                                                                if (e.target.checked) {
+                                                                    setSelectedInvoices(prev => [...prev, invoice.id || ""]);
+                                                                } else {
+                                                                    setSelectedInvoices(prev => prev.filter(id => id !== invoice.id));
+                                                                }
+                                                            }}
+                                                        />
+                                                    </div>
+                                                </td>
+                                                <td className="py-4 px-3 text-sm text-slate-500 whitespace-nowrap">
+                                                    <div className="flex items-center gap-2">
+                                                        <Calendar className="h-3.5 w-3.5 text-slate-400" />
+                                                        {invoice.issueDate ? formatDate(invoice.issueDate) : "-"}
+                                                    </div>
+                                                </td>
+                                                <td className="py-4 px-3 whitespace-nowrap">
+                                                    <div className="flex flex-col gap-0.5">
                                                         <div className="flex items-center gap-2">
-                                                            <Calendar className="h-3.5 w-3.5 text-slate-400" />
-                                                            {invoice.issueDate ? formatDate(invoice.issueDate) : "-"}
-                                                        </div>
-                                                    </TableCell>
-                                                    <TableCell className="py-4">
-                                                        <div className="flex flex-col gap-0.5">
-                                                            <div className="flex items-center gap-2">
-                                                                <Building2 className="h-3.5 w-3.5 text-slate-400 flex-shrink-0" />
-                                                                <span className="text-sm font-medium text-slate-700 truncate max-w-[200px]">
-                                                                    {invoice.issuerName || "-"}
-                                                                </span>
-                                                            </div>
-                                                            <span className="text-[10px] text-slate-400 pl-5 uppercase">
-                                                                NIT: {invoice.issuerNit || "-"}
+                                                            <Building2 className="h-3.5 w-3.5 text-slate-400 flex-shrink-0" />
+                                                            <span className="text-sm font-medium text-slate-700 truncate max-w-[200px]">
+                                                                {invoice.issuerName || "-"}
                                                             </span>
                                                         </div>
-                                                    </TableCell>
-                                                    <TableCell className="py-4 text-right text-xs font-medium text-slate-500">
-                                                        {formatCurrency((invoice.vat || 0) + (invoice.inc || 0))}
-                                                    </TableCell>
-                                                    <TableCell className="py-4 text-right">
-                                                        <span className="font-bold text-slate-900">
-                                                            {formatCurrency(invoice.total || 0)}
+                                                        <span className="text-[10px] text-slate-400 pl-5 uppercase">
+                                                            NIT: {invoice.issuerNit || "-"}
                                                         </span>
-                                                    </TableCell>
-                                                    <TableCell className="py-4 text-center">
-                                                        <div className="flex justify-center">
-                                                            {invoice.isDownloaded ? (
-                                                                <CheckCircle2 className="h-5 w-5 text-emerald-500 shadow-sm rounded-full" />
-                                                            ) : (
-                                                                <Circle className="h-5 w-5 text-slate-200" strokeWidth={1} />
-                                                            )}
-                                                        </div>
-                                                    </TableCell>
-                                                    <TableCell className="py-4 text-center">
-                                                        <div className="flex justify-center">
-                                                            {invoice.isAccounted ? (
-                                                                <CheckCircle2 className="h-5 w-5 text-blue-500 shadow-sm rounded-full" />
-                                                            ) : (
-                                                                <Circle className="h-5 w-5 text-slate-200" strokeWidth={1} />
-                                                            )}
-                                                        </div>
-                                                    </TableCell>
-                                                    <TableCell className="py-4">
-                                                        <div className="flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                            <Button
-                                                                variant="ghost"
-                                                                size="icon"
-                                                                onClick={() => {
-                                                                    setSelectedPdfUrl(invoice.pdfUrl || null);
-                                                                    setIsPdfModalOpen(true);
-                                                                }}
-                                                                className="h-8 w-8 text-blue-600 hover:bg-blue-50"
-                                                                title="Ver PDF"
-                                                            >
-                                                                <Eye className="h-4 w-4" />
-                                                            </Button>
-                                                            <Button
-                                                                variant="ghost"
-                                                                size="icon"
-                                                                onClick={() => {
-                                                                    const encodedUrl = encodeURIComponent(invoice.xmlUrl || "");
-                                                                    router.push(`/facturas/xml?url=${encodedUrl}`);
-                                                                }}
-                                                                className="h-8 w-8 text-emerald-600 hover:bg-emerald-50"
-                                                                title="Ver XML"
-                                                            >
-                                                                <FileCode className="h-4 w-4" />
-                                                            </Button>
-                                                        </div>
-                                                    </TableCell>
-                                                </TableRow>
-                                            ))
-                                        ) : (
-                                            <TableRow>
-                                                <TableCell colSpan={8} className="text-center py-20">
-                                                    <div className="flex flex-col items-center gap-3">
-                                                        <div className="p-4 bg-slate-50 rounded-full">
-                                                            <Receipt className="h-8 w-8 text-slate-300" />
-                                                        </div>
-                                                        <p className="text-slate-500 font-medium">No se encontraron documentos</p>
-                                                        <p className="text-slate-400 text-sm">Prueba ajustando los filtros o realiza una nueva sincronización</p>
                                                     </div>
-                                                </TableCell>
-                                            </TableRow>
-                                        )}
-                                    </TableBody>
-                                </Table>
-                            </div>
+                                                </td>
+                                                <td className="py-4 px-3 text-right text-xs font-medium text-slate-500 whitespace-nowrap">
+                                                    {formatCurrency((invoice.vat || 0) + (invoice.inc || 0))}
+                                                </td>
+                                                <td className="py-4 px-3 text-right whitespace-nowrap">
+                                                    <span className="font-bold text-slate-900">
+                                                        {formatCurrency(invoice.total || 0)}
+                                                    </span>
+                                                </td>
+                                                <td className="py-4 px-3 text-center whitespace-nowrap">
+                                                    <div className="flex justify-center">
+                                                        {invoice.isDownloaded ? (
+                                                            <CheckCircle2 className="h-5 w-5 text-emerald-500 shadow-sm rounded-full" />
+                                                        ) : (
+                                                            <Circle className="h-5 w-5 text-slate-200" strokeWidth={1} />
+                                                        )}
+                                                    </div>
+                                                </td>
+                                                <td className="py-4 px-3 text-center whitespace-nowrap">
+                                                    <div className="flex justify-center">
+                                                        {invoice.isAccounted ? (
+                                                            <CheckCircle2 className="h-5 w-5 text-blue-500 shadow-sm rounded-full" />
+                                                        ) : (
+                                                            <Circle className="h-5 w-5 text-slate-200" strokeWidth={1} />
+                                                        )}
+                                                    </div>
+                                                </td>
+                                                <td className="py-4 px-3 whitespace-nowrap">
+                                                    <div className="flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            onClick={() => {
+                                                                setSelectedPdfUrl(invoice.pdfUrl || null);
+                                                                setIsPdfModalOpen(true);
+                                                            }}
+                                                            className="h-8 w-8 text-blue-600 hover:bg-blue-50"
+                                                            title="Ver PDF"
+                                                        >
+                                                            <Eye className="h-4 w-4" />
+                                                        </Button>
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            onClick={() => {
+                                                                const encodedUrl = encodeURIComponent(invoice.xmlUrl || "");
+                                                                router.push(`/facturas/xml?url=${encodedUrl}`);
+                                                            }}
+                                                            className="h-8 w-8 text-emerald-600 hover:bg-emerald-50"
+                                                            title="Ver XML"
+                                                        >
+                                                            <FileCode className="h-4 w-4" />
+                                                        </Button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))
+                                    ) : (
+                                        <tr>
+                                            <td colSpan={8} className="text-center py-20">
+                                                <div className="flex flex-col items-center gap-3">
+                                                    <div className="p-4 bg-slate-50 rounded-full">
+                                                        <Receipt className="h-8 w-8 text-slate-300" />
+                                                    </div>
+                                                    <p className="text-slate-500 font-medium">No se encontraron documentos</p>
+                                                    <p className="text-slate-400 text-sm">Prueba ajustando los filtros o realiza una nueva sincronización</p>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </table>
                         ) : (
                             <div className="flex flex-col items-center justify-center py-24 text-center">
                                 <div className="p-6 bg-blue-50 rounded-full mb-6">
@@ -569,7 +581,7 @@ export default function FacturasPage() {
                                 <p className="text-slate-500 mb-8 max-w-md">
                                     Sincroniza con la DIAN o sube tus archivos Excel para empezar a gestionar tus documentos.
                                 </p>
-                                <div className="flex items-center gap-3">
+                                <div className="flex items-center gap-3 justify-center">
                                     <Button onClick={() => setIsUploadModalOpen(true)} size="lg" className="bg-blue-600 hover:bg-blue-700">
                                         <Plus className="mr-2 h-4 w-4" />
                                         Nuevo documento
@@ -581,7 +593,7 @@ export default function FacturasPage() {
                                 </div>
                             </div>
                         )}
-                    </CardContent>
+                    </div>
 
                     {totalPages > 1 && (
                         <div className="px-6 py-4 border-t bg-white flex items-center justify-between">
@@ -646,7 +658,7 @@ export default function FacturasPage() {
                         </div>
                     )}
                 </Card>
-            </div>
+            </div >
 
             <UploadDianModal
                 open={isUploadModalOpen}
@@ -666,6 +678,6 @@ export default function FacturasPage() {
                 pdfUrl={selectedPdfUrl}
                 fileName="Factura Electrónica"
             />
-        </div>
+        </div >
     );
 }
