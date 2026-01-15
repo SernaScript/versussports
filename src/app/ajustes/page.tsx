@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Loader2, Upload, Plus, Trash2, Search, Check, Save, FileText, Landmark, RefreshCw, Settings2, Users, Building2, Package, Receipt, CreditCard, Coins } from "lucide-react";
+import { Loader2, Upload, Plus, Trash2, Search, Check, Save, FileText, Landmark, RefreshCw, Settings2, Users, Building2, Package, Receipt, CreditCard, Coins, Circle } from "lucide-react";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
 import {
@@ -184,7 +184,7 @@ function VouchersSection() {
     };
 
     return (
-        <div className="space-y-6 max-w-4xl">
+        <div className="space-y-6">
             <div>
                 <h2 className="text-2xl font-bold tracking-tight">Tipos de Comprobante</h2>
                 <p className="text-muted-foreground">Gestiona los tipos de documento sincronizados con Siigo.</p>
@@ -207,7 +207,7 @@ function VouchersSection() {
                     {loading ? (
                         <LoadingSection />
                     ) : (
-                        <div className="rounded-md border bg-white overflow-hidden">
+                        <div className="rounded-md border bg-white overflow-x-auto">
                             <Table>
                                 <TableHeader>
                                     <TableRow>
@@ -322,7 +322,7 @@ function AccountsSection() {
     };
 
     return (
-        <div className="space-y-6 max-w-5xl">
+        <div className="space-y-6">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div>
                     <h2 className="text-2xl font-bold tracking-tight">Plan de Cuentas</h2>
@@ -381,7 +381,7 @@ function AccountsSection() {
                     {loading ? (
                         <LoadingSection />
                     ) : (
-                        <div className="rounded-md border bg-white overflow-hidden">
+                        <div className="rounded-md border bg-white overflow-x-auto">
                             <Table>
                                 <TableHeader>
                                     <TableRow>
@@ -473,7 +473,7 @@ function ConceptsSection() {
     };
 
     return (
-        <div className="space-y-6 max-w-4xl">
+        <div className="space-y-6">
             <div>
                 <h2 className="text-2xl font-bold tracking-tight">Conceptos de Gasto</h2>
                 <p className="text-muted-foreground">Reglas automáticas para identificar gastos bancarios.</p>
@@ -612,7 +612,7 @@ function GeneralSettingsSection() {
     };
 
     return (
-        <div className="space-y-6 max-w-4xl">
+        <div className="space-y-6">
             <div>
                 <h2 className="text-2xl font-bold tracking-tight">Ajustes Generales</h2>
                 <p className="text-muted-foreground">Parámetros globales para la contabilización.</p>
@@ -790,7 +790,7 @@ function SuppliersSection() {
     };
 
     return (
-        <div className="space-y-6 max-w-4xl">
+        <div className="space-y-6">
             <div>
                 <h2 className="text-2xl font-bold tracking-tight">Proveedores</h2>
                 <p className="text-muted-foreground">Gestiona los proveedores sincronizados con Siigo.</p>
@@ -822,7 +822,7 @@ function SuppliersSection() {
                     {loading ? (
                         <LoadingSection />
                     ) : (
-                        <div className="rounded-md border bg-white overflow-hidden">
+                        <div className="rounded-md border bg-white overflow-x-auto">
                             <Table>
                                 <TableHeader>
                                     <TableRow>
@@ -1088,7 +1088,7 @@ function ProviderConfigsSection() {
     const canNext = page < totalPages;
 
     return (
-        <div className="space-y-6 max-w-6xl">
+        <div className="space-y-6">
             <div>
                 <h2 className="text-2xl font-bold tracking-tight">Configuración de Terceros</h2>
                 <p className="text-muted-foreground">Define cuenta de gasto e impuesto de retención por proveedor (NIT).</p>
@@ -1111,22 +1111,21 @@ function ProviderConfigsSection() {
                         <LoadingSection />
                     ) : (
                         <>
-                            <div className="rounded-md border bg-white overflow-hidden">
+                            <div className="rounded-md border bg-white overflow-x-auto">
                                 <Table>
                                     <TableHeader>
                                         <TableRow>
-                                            <TableHead>NIT</TableHead>
-                                            <TableHead>Proveedor</TableHead>
+                                            <TableHead>Tercero (NIT - Nombre)</TableHead>
                                             <TableHead>Cuenta de gasto</TableHead>
                                             <TableHead>Retención</TableHead>
-                                            <TableHead>Estado</TableHead>
-                                            <TableHead className="text-right">Acciones</TableHead>
+                                            <TableHead className="text-center w-[80px]">Estado</TableHead>
+                                            <TableHead className="text-right w-[60px]"></TableHead>
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
                                         {configs.length === 0 ? (
                                             <TableRow>
-                                                <TableCell colSpan={6} className="text-center py-8 text-gray-500">
+                                                <TableCell colSpan={5} className="text-center py-8 text-gray-500">
                                                     No hay proveedores (o no hay coincidencias).
                                                 </TableCell>
                                             </TableRow>
@@ -1137,34 +1136,44 @@ function ProviderConfigsSection() {
                                                 const isPending = status !== "COMPLETED";
                                                 return (
                                                     <TableRow key={c.providerNit}>
-                                                        <TableCell className="font-medium">{c.providerNit}</TableCell>
-                                                        <TableCell className="min-w-[260px]">
-                                                            <span className="text-sm">{(c.providerName || c.provider_name || "-")}</span>
+                                                        <TableCell className="min-w-[280px]">
+                                                            <div className="flex flex-col">
+                                                                <span className="text-sm font-medium">{(c.providerName || c.provider_name || "-")}</span>
+                                                                <span className="text-xs font-mono text-muted-foreground">{c.providerNit}</span>
+                                                            </div>
                                                         </TableCell>
-                                                        <TableCell className="min-w-[320px]">
+                                                        <TableCell className="min-w-[220px]">
                                                             <AccountIdSelector
                                                                 value={d.expenseAccountId}
                                                                 onSelect={(val) => setDrafts(prev => ({ ...prev, [c.providerNit]: { ...d, expenseAccountId: val } }))}
                                                             />
                                                         </TableCell>
-                                                        <TableCell className="min-w-[360px]">
+                                                        <TableCell className="min-w-[260px]">
                                                             <WithholdingTaxSelector
                                                                 value={d.withholdingTaxId}
                                                                 onSelect={(val) => setDrafts(prev => ({ ...prev, [c.providerNit]: { ...d, withholdingTaxId: val } }))}
                                                             />
                                                         </TableCell>
-                                                        <TableCell>
-                                                            <Badge variant={isPending ? "secondary" : "outline"}>
-                                                                {isPending ? "PENDING" : "COMPLETED"}
-                                                            </Badge>
+                                                        <TableCell className="text-center">
+                                                            <div className="flex justify-center">
+                                                                <div
+                                                                    className={cn(
+                                                                        "h-2.5 w-2.5 rounded-full ring-2 ring-white",
+                                                                        isPending ? "bg-amber-400" : "bg-emerald-500"
+                                                                    )}
+                                                                    title={isPending ? "Pendiente" : "Completado"}
+                                                                />
+                                                            </div>
                                                         </TableCell>
                                                         <TableCell className="text-right">
                                                             <Button
+                                                                variant="ghost"
+                                                                size="icon"
                                                                 onClick={() => handleSave(c.providerNit)}
                                                                 disabled={savingNit === c.providerNit}
+                                                                title="Guardar"
                                                             >
-                                                                {savingNit === c.providerNit ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
-                                                                Guardar
+                                                                {savingNit === c.providerNit ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                                                             </Button>
                                                         </TableCell>
                                                     </TableRow>
@@ -1251,7 +1260,7 @@ function CostCentersSection() {
     };
 
     return (
-        <div className="space-y-6 max-w-4xl">
+        <div className="space-y-6">
             <div>
                 <h2 className="text-2xl font-bold tracking-tight">Centros de Costo</h2>
                 <p className="text-muted-foreground">Gestiona los centros de costo sincronizados con Siigo.</p>
@@ -1283,7 +1292,7 @@ function CostCentersSection() {
                     {loading ? (
                         <LoadingSection />
                     ) : (
-                        <div className="rounded-md border bg-white overflow-hidden">
+                        <div className="rounded-md border bg-white overflow-x-auto">
                             <Table>
                                 <TableHeader>
                                     <TableRow>
@@ -1357,7 +1366,7 @@ function ProductsSection() {
     };
 
     return (
-        <div className="space-y-6 max-w-4xl">
+        <div className="space-y-6">
             <div>
                 <h2 className="text-2xl font-bold tracking-tight">Productos</h2>
                 <p className="text-muted-foreground">Gestiona los productos sincronizados con Siigo.</p>
@@ -1389,7 +1398,7 @@ function ProductsSection() {
                     {loading ? (
                         <LoadingSection />
                     ) : (
-                        <div className="rounded-md border bg-white overflow-hidden">
+                        <div className="rounded-md border bg-white overflow-x-auto">
                             <Table>
                                 <TableHeader>
                                     <TableRow>
@@ -1465,7 +1474,7 @@ function TaxesSection() {
     };
 
     return (
-        <div className="space-y-6 max-w-4xl">
+        <div className="space-y-6">
             <div>
                 <h2 className="text-2xl font-bold tracking-tight">Impuestos</h2>
                 <p className="text-muted-foreground">Gestiona los impuestos sincronizados con Siigo.</p>
@@ -1497,7 +1506,7 @@ function TaxesSection() {
                     {loading ? (
                         <LoadingSection />
                     ) : (
-                        <div className="rounded-md border bg-white overflow-hidden">
+                        <div className="rounded-md border bg-white overflow-x-auto">
                             <Table>
                                 <TableHeader>
                                     <TableRow>
@@ -1573,7 +1582,7 @@ function PaymentTypesSection() {
     };
 
     return (
-        <div className="space-y-6 max-w-4xl">
+        <div className="space-y-6">
             <div>
                 <h2 className="text-2xl font-bold tracking-tight">Formas de Pago</h2>
                 <p className="text-muted-foreground">Gestiona las formas de pago sincronizadas con Siigo.</p>
@@ -1605,7 +1614,7 @@ function PaymentTypesSection() {
                     {loading ? (
                         <LoadingSection />
                     ) : (
-                        <div className="rounded-md border bg-white overflow-hidden">
+                        <div className="rounded-md border bg-white overflow-x-auto">
                             <Table>
                                 <TableHeader>
                                     <TableRow>
@@ -1677,7 +1686,7 @@ function CurrenciesSection() {
     };
 
     return (
-        <div className="space-y-6 max-w-4xl">
+        <div className="space-y-6">
             <div>
                 <h2 className="text-2xl font-bold tracking-tight">Monedas</h2>
                 <p className="text-muted-foreground">Gestiona las monedas sincronizadas con Siigo.</p>
@@ -1709,7 +1718,7 @@ function CurrenciesSection() {
                     {loading ? (
                         <LoadingSection />
                     ) : (
-                        <div className="rounded-md border bg-white overflow-hidden">
+                        <div className="rounded-md border bg-white overflow-x-auto">
                             <Table>
                                 <TableHeader>
                                     <TableRow>
