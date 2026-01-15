@@ -717,7 +717,7 @@ function AccountSelector({ value, onSelect }: { value: string, onSelect: (val: s
                     <Search className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                 </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-[400px] p-0">
+            <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
                 <Command shouldFilter={false}>
                     <CommandInput placeholder="Buscar por código o nombre..." onValueChange={setSearch} />
                     <CommandList>
@@ -898,7 +898,7 @@ function AccountIdSelector({ value, onSelect }: { value: string | null, onSelect
                     <Search className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                 </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-[420px] p-0">
+            <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
                 <Command shouldFilter={false}>
                     <CommandInput placeholder="Buscar por código o nombre..." onValueChange={setSearch} />
                     <CommandList>
@@ -977,7 +977,7 @@ function WithholdingTaxSelector({ value, onSelect }: { value: string | null, onS
                     <Search className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                 </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-[460px] p-0">
+            <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
                 <Command shouldFilter={false}>
                     <CommandInput placeholder="Buscar por nombre o ID Siigo..." onValueChange={setSearch} />
                     <CommandList>

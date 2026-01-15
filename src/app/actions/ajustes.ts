@@ -76,23 +76,37 @@ export async function getSiigoAccounts(query?: string) {
 export async function getExpenseAccounts(query?: string) {
     try {
         const q = query?.trim();
-        const where = {
-            AND: [
-                {
-                    OR: [
-                        { code: { startsWith: "5" } },
-                        { code: { startsWith: "6" } },
-                        { code: { startsWith: "7" } }
-                    ]
-                },
-                ...(q ? [{
-                    OR: [
-                        { name: { contains: q, mode: "insensitive" as const } },
-                        { code: { contains: q } }
-                    ]
-                }] : [])
+        const isNumeric = !!q && /^[0-9]+$/.test(q);
+
+        const basePrefixFilter = {
+            OR: [
+                { code: { startsWith: "5" } },
+                { code: { startsWith: "6" } },
+                { code: { startsWith: "7" } }
             ]
         };
+
+        const where = q
+            ? (isNumeric
+                ? {
+                    AND: [
+                        basePrefixFilter,
+                        // Para códigos numéricos: match estrictamente de izquierda a derecha (prefijo)
+                        { code: { startsWith: q } }
+                    ]
+                }
+                : {
+                    AND: [
+                        basePrefixFilter,
+                        {
+                            OR: [
+                                { name: { contains: q, mode: "insensitive" as const } },
+                                { code: { contains: q } }
+                            ]
+                        }
+                    ]
+                })
+            : { AND: [basePrefixFilter] };
 
         const accounts = await prisma.siigoAccount.findMany({
             where: where as any,
