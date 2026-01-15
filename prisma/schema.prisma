@@ -228,6 +228,9 @@ model SiigoTax {
 model ProviderAccountingConfig {
   providerNit String @id @map("provider_nit")
 
+  providerName String? @map("provider_name")
+  status       String  @default("PENDING")
+
   expenseAccountId String?     @map("expense_account_id")
   expenseAccount   SiigoAccount? @relation("ProviderExpenseAccount", fields: [expenseAccountId], references: [id])
 

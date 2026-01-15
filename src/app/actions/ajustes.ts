@@ -107,6 +107,24 @@ export async function saveSiigoSettings(data: {
     }
 }
 
+export async function getDianReceiverNameByNit(nit: string) {
+    try {
+        const normalizedNit = String(nit || "").trim();
+        if (!normalizedNit) return { success: true, data: null as string | null };
+
+        const invoice = await prisma.dianInvoice.findFirst({
+            where: { receiverNit: normalizedNit },
+            orderBy: { issueDate: "desc" },
+            select: { receiverName: true },
+        });
+
+        return { success: true, data: invoice?.receiverName || null };
+    } catch (error) {
+        console.error("Error fetching DIAN receiver name by NIT:", error);
+        return { success: false, error: "Error consultando el nombre del receptor en DIAN." };
+    }
+}
+
 // --- Bank Expense Concepts ---
 
 export async function getBankExpenseConcepts() {

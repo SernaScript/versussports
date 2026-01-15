@@ -15,6 +15,7 @@ import {
     getSiigoAccounts,
     getSiigoSettings,
     saveSiigoSettings,
+    getDianReceiverNameByNit,
     getBankExpenseConcepts,
     createBankExpenseConcept,
     deleteBankExpenseConcept,
@@ -562,10 +563,34 @@ function ConceptsSection() {
 function GeneralSettingsSection() {
     const [settings, setSettings] = useState<any>({});
     const [loading, setLoading] = useState(true);
+    const [bankNitReceiverName, setBankNitReceiverName] = useState<string | null>(null);
+    const [bankNitLookupLoading, setBankNitLookupLoading] = useState(false);
 
     useEffect(() => {
         loadSettings();
     }, []);
+
+    useEffect(() => {
+        const nit = String(settings.bankNit || "").trim();
+        if (!nit) {
+            setBankNitReceiverName(null);
+            setBankNitLookupLoading(false);
+            return;
+        }
+
+        const timeout = setTimeout(async () => {
+            setBankNitLookupLoading(true);
+            const res = await getDianReceiverNameByNit(nit);
+            if (res.success) {
+                setBankNitReceiverName((res as any).data ?? null);
+            } else {
+                setBankNitReceiverName(null);
+            }
+            setBankNitLookupLoading(false);
+        }, 400);
+
+        return () => clearTimeout(timeout);
+    }, [settings.bankNit]);
 
     const loadSettings = async () => {
         setLoading(true);
@@ -620,17 +645,35 @@ function GeneralSettingsSection() {
                                     <b>Nota:</b> Usa la sección "Comprobantes" para ver los IDs disponibles.
                                 </p>
                             </div>
-                            <div className="space-y-2">
-                                <Label>NIT del Banco / Tercero</Label>
-                                <Input
-                                    value={settings.bankNit || ""}
-                                    onChange={(e) => setSettings({ ...settings, bankNit: e.target.value })}
-                                    placeholder="Ej. 890900900"
-                                />
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <Label>NIT del Banco / Tercero</Label>
+                                    <Input
+                                        value={settings.bankNit || ""}
+                                        onChange={(e) => setSettings({ ...settings, bankNit: e.target.value })}
+                                        placeholder="Ej. 890900900"
+                                        inputMode="numeric"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label>Nombre del receptor (DIAN)</Label>
+                                    <Input
+                                        value={bankNitReceiverName || ""}
+                                        readOnly
+                                        disabled
+                                        placeholder={
+                                            bankNitLookupLoading
+                                                ? "Consultando..."
+                                                : (String(settings.bankNit || "").trim() ? "No encontrado" : "Ingresa un NIT")
+                                        }
+                                    />
+                                </div>
                             </div>
-                            <Button type="submit" className="w-full">
-                                <Save className="mr-2 h-4 w-4" /> Guardar Configuración
-                            </Button>
+                            <div className="flex justify-end">
+                                <Button type="submit" size="icon" aria-label="Guardar configuración">
+                                    <Save className="h-4 w-4" />
+                                </Button>
+                            </div>
                         </form>
                     )}
                 </CardContent>
@@ -985,6 +1028,9 @@ function ProviderConfigsSection() {
     const [configs, setConfigs] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState("");
+    const [page, setPage] = useState(1);
+    const pageSize = 20;
+    const [total, setTotal] = useState(0);
     const [drafts, setDrafts] = useState<Record<string, { expenseAccountId: string | null; withholdingTaxId: string | null }>>({});
     const [savingNit, setSavingNit] = useState<string | null>(null);
 
@@ -992,11 +1038,14 @@ function ProviderConfigsSection() {
         loadConfigs();
     }, []);
 
-    const loadConfigs = async (query?: string) => {
+    const loadConfigs = async (query?: string, nextPage?: number) => {
         setLoading(true);
-        const res = await getProviderAccountingConfigs(query);
+        const currentPage = nextPage ?? page;
+        const res = await getProviderAccountingConfigs({ query, page: currentPage, pageSize });
         if (res.success && res.data) {
             setConfigs(res.data);
+            setTotal((res as any).total ?? 0);
+            setPage((res as any).page ?? currentPage);
             const nextDrafts: Record<string, { expenseAccountId: string | null; withholdingTaxId: string | null }> = {};
             for (const c of res.data) {
                 nextDrafts[c.providerNit] = {
@@ -1012,7 +1061,8 @@ function ProviderConfigsSection() {
     const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
         const val = e.target.value;
         setSearch(val);
-        loadConfigs(val);
+        setPage(1);
+        loadConfigs(val, 1);
     };
 
     const handleSave = async (providerNit: string) => {
@@ -1027,11 +1077,15 @@ function ProviderConfigsSection() {
         setSavingNit(null);
         if (res.success) {
             toast.success("Configuración guardada");
-            loadConfigs(search);
+            loadConfigs(search, page);
         } else {
             toast.error(("error" in res && (res as any).error) ? (res as any).error : "Error al guardar configuración");
         }
     };
+
+    const totalPages = Math.max(1, Math.ceil(total / pageSize));
+    const canPrev = page > 1;
+    const canNext = page < totalPages;
 
     return (
         <div className="space-y-6 max-w-6xl">
@@ -1056,64 +1110,103 @@ function ProviderConfigsSection() {
                     {loading ? (
                         <LoadingSection />
                     ) : (
-                        <div className="rounded-md border bg-white overflow-hidden">
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead>NIT</TableHead>
-                                        <TableHead>Cuenta de gasto</TableHead>
-                                        <TableHead>Retención</TableHead>
-                                        <TableHead>Estado</TableHead>
-                                        <TableHead className="text-right">Acciones</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {configs.length === 0 ? (
+                        <>
+                            <div className="rounded-md border bg-white overflow-hidden">
+                                <Table>
+                                    <TableHeader>
                                         <TableRow>
-                                            <TableCell colSpan={5} className="text-center py-8 text-gray-500">
-                                                No hay proveedores pendientes por configurar (o no hay coincidencias).
-                                            </TableCell>
+                                            <TableHead>NIT</TableHead>
+                                            <TableHead>Proveedor</TableHead>
+                                            <TableHead>Cuenta de gasto</TableHead>
+                                            <TableHead>Retención</TableHead>
+                                            <TableHead>Estado</TableHead>
+                                            <TableHead className="text-right">Acciones</TableHead>
                                         </TableRow>
-                                    ) : (
-                                        configs.map((c) => {
-                                            const d = drafts[c.providerNit] || { expenseAccountId: null, withholdingTaxId: null };
-                                            const isPending = !d.expenseAccountId || !d.withholdingTaxId;
-                                            return (
-                                                <TableRow key={c.providerNit}>
-                                                    <TableCell className="font-medium">{c.providerNit}</TableCell>
-                                                    <TableCell className="min-w-[320px]">
-                                                        <AccountIdSelector
-                                                            value={d.expenseAccountId}
-                                                            onSelect={(val) => setDrafts(prev => ({ ...prev, [c.providerNit]: { ...d, expenseAccountId: val } }))}
-                                                        />
-                                                    </TableCell>
-                                                    <TableCell className="min-w-[360px]">
-                                                        <WithholdingTaxSelector
-                                                            value={d.withholdingTaxId}
-                                                            onSelect={(val) => setDrafts(prev => ({ ...prev, [c.providerNit]: { ...d, withholdingTaxId: val } }))}
-                                                        />
-                                                    </TableCell>
-                                                    <TableCell>
-                                                        <Badge variant={isPending ? "secondary" : "outline"}>
-                                                            {isPending ? "Pendiente" : "Configurado"}
-                                                        </Badge>
-                                                    </TableCell>
-                                                    <TableCell className="text-right">
-                                                        <Button
-                                                            onClick={() => handleSave(c.providerNit)}
-                                                            disabled={savingNit === c.providerNit}
-                                                        >
-                                                            {savingNit === c.providerNit ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
-                                                            Guardar
-                                                        </Button>
-                                                    </TableCell>
-                                                </TableRow>
-                                            );
-                                        })
-                                    )}
-                                </TableBody>
-                            </Table>
-                        </div>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {configs.length === 0 ? (
+                                            <TableRow>
+                                                <TableCell colSpan={6} className="text-center py-8 text-gray-500">
+                                                    No hay proveedores (o no hay coincidencias).
+                                                </TableCell>
+                                            </TableRow>
+                                        ) : (
+                                            configs.map((c) => {
+                                                const d = drafts[c.providerNit] || { expenseAccountId: null, withholdingTaxId: null };
+                                                const status = String(c.status || "PENDING").toUpperCase();
+                                                const isPending = status !== "COMPLETED";
+                                                return (
+                                                    <TableRow key={c.providerNit}>
+                                                        <TableCell className="font-medium">{c.providerNit}</TableCell>
+                                                        <TableCell className="min-w-[260px]">
+                                                            <span className="text-sm">{(c.providerName || c.provider_name || "-")}</span>
+                                                        </TableCell>
+                                                        <TableCell className="min-w-[320px]">
+                                                            <AccountIdSelector
+                                                                value={d.expenseAccountId}
+                                                                onSelect={(val) => setDrafts(prev => ({ ...prev, [c.providerNit]: { ...d, expenseAccountId: val } }))}
+                                                            />
+                                                        </TableCell>
+                                                        <TableCell className="min-w-[360px]">
+                                                            <WithholdingTaxSelector
+                                                                value={d.withholdingTaxId}
+                                                                onSelect={(val) => setDrafts(prev => ({ ...prev, [c.providerNit]: { ...d, withholdingTaxId: val } }))}
+                                                            />
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            <Badge variant={isPending ? "secondary" : "outline"}>
+                                                                {isPending ? "PENDING" : "COMPLETED"}
+                                                            </Badge>
+                                                        </TableCell>
+                                                        <TableCell className="text-right">
+                                                            <Button
+                                                                onClick={() => handleSave(c.providerNit)}
+                                                                disabled={savingNit === c.providerNit}
+                                                            >
+                                                                {savingNit === c.providerNit ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
+                                                                Guardar
+                                                            </Button>
+                                                        </TableCell>
+                                                    </TableRow>
+                                                );
+                                            })
+                                        )}
+                                    </TableBody>
+                                </Table>
+                            </div>
+
+                            <div className="flex items-center justify-between pt-4">
+                                <p className="text-xs text-muted-foreground">
+                                    Mostrando {configs.length} de {total} · Página {page} de {totalPages}
+                                </p>
+                                <div className="flex items-center gap-2">
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        disabled={!canPrev}
+                                        onClick={() => {
+                                            const p = Math.max(1, page - 1);
+                                            setPage(p);
+                                            loadConfigs(search, p);
+                                        }}
+                                    >
+                                        Anterior
+                                    </Button>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        disabled={!canNext}
+                                        onClick={() => {
+                                            const p = page + 1;
+                                            setPage(p);
+                                            loadConfigs(search, p);
+                                        }}
+                                    >
+                                        Siguiente
+                                    </Button>
+                                </div>
+                            </div>
+                        </>
                     )}
                 </CardContent>
             </Card>
@@ -1470,7 +1563,7 @@ function PaymentTypesSection() {
             toast.success(`Se sincronizaron ${res.count} formas de pago.`);
             loadPaymentTypes();
         } else {
-            toast.error(res.error);
+            toast.error(("error" in res && res.error) ? (res as any).error : "Error al sincronizar formas de pago");
         }
     };
 
@@ -1574,7 +1667,7 @@ function CurrenciesSection() {
             toast.success(`Se sincronizaron ${res.count} monedas.`);
             loadCurrencies();
         } else {
-            toast.error(res.error);
+            toast.error(("error" in res && (res as any).error) ? (res as any).error : "Error al sincronizar monedas");
         }
     };
 

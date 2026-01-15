@@ -49,6 +49,8 @@ export async function saveDianInvoices(invoices: ProcessedDianInvoice[]) {
             return { success: true, count: 0, message: "No hay facturas para guardar" };
         }
 
+        const normalizeUpper = (value: any) => String(value ?? "").trim().toUpperCase();
+
         // Preparar datos para insertar/actualizar
         const formattedInvoices = invoices.map((invoice) => {
             let issueDate = parseDate(invoice.issueDate);
@@ -69,7 +71,7 @@ export async function saveDianInvoices(invoices: ProcessedDianInvoice[]) {
                 prefix: invoice.prefix || "",
                 issueDate: issueDate,
                 issuerNit: invoice.issuerNit || "",
-                issuerName: invoice.issuerName || "",
+                issuerName: normalizeUpper(invoice.issuerName),
                 receiverNit: invoice.receiverNit || "",
                 receiverName: invoice.receiverName || "",
                 vat: invoice.vat || 0,
@@ -102,23 +104,40 @@ export async function saveDianInvoices(invoices: ProcessedDianInvoice[]) {
         // Ensure provider accounting configs exist (insert-if-missing by provider NIT).
         // provider_nit is stored "as-is" with trim().
         try {
-            const uniqueProviderNits = Array.from(
-                new Set(
-                    formattedInvoices
-                        .map((inv) => (inv.issuerNit || "").trim())
-                        .filter((nit) => nit.length > 0)
-                )
-            );
+            const nitToName = new Map<string, string>();
+            for (const inv of formattedInvoices) {
+                const nit = (inv.issuerNit || "").trim();
+                if (!nit) continue;
+                const name = normalizeUpper(inv.issuerName);
+                if (name) nitToName.set(nit, name);
+                else if (!nitToName.has(nit)) nitToName.set(nit, "");
+            }
+            const uniqueProviderNits = Array.from(nitToName.keys());
 
             if (uniqueProviderNits.length > 0) {
-                await prisma.providerAccountingConfig.createMany({
+                await (prisma as any).providerAccountingConfig.createMany({
                     data: uniqueProviderNits.map((nit) => ({
                         providerNit: nit,
+                        providerName: nitToName.get(nit) || null,
+                        status: "PENDING",
                         expenseAccountId: null,
                         withholdingTaxId: null,
                     })),
                     skipDuplicates: true,
                 });
+
+                // Backfill providerName for existing rows that don't have it yet
+                for (const nit of uniqueProviderNits) {
+                    const name = nitToName.get(nit);
+                    if (!name) continue;
+                    await (prisma as any).providerAccountingConfig.updateMany({
+                        where: {
+                            providerNit: nit,
+                            OR: [{ providerName: null }, { providerName: "" }],
+                        } as any,
+                        data: { providerName: name },
+                    });
+                }
             }
         } catch (error) {
             // Don't block invoice ingestion if provider config pre-creation fails.
@@ -218,6 +237,7 @@ export async function getDianInvoices() {
 
         const serializedInvoices = invoices.map((invoice: any) => ({
             ...invoice,
+            issuerName: String(invoice.issuerName || "").trim().toUpperCase(),
             vat: Number(invoice.vat),
             inc: Number(invoice.inc),
             total: Number(invoice.total),
@@ -238,14 +258,14 @@ export async function getDianInvoices() {
             withheldVat: invoice.withheldVat ? Number(invoice.withheldVat) : null,
             withheldIncome: invoice.withheldIncome ? Number(invoice.withheldIncome) : null,
             withheldIca: invoice.withheldIca ? Number(invoice.withheldIca) : null,
-            pdfUrl: invoice.PDFURL 
-                ? invoice.PDFURL.startsWith('/api/downloads/') 
-                    ? invoice.PDFURL 
+            pdfUrl: invoice.PDFURL
+                ? invoice.PDFURL.startsWith('/api/downloads/')
+                    ? invoice.PDFURL
                     : invoice.PDFURL.replace(/^downloads\//, '/api/downloads/').replace(/^\/downloads\//, '/api/downloads/')
                 : null,
-            xmlUrl: invoice.XMLURL 
-                ? invoice.XMLURL.startsWith('/api/downloads/') 
-                    ? invoice.XMLURL 
+            xmlUrl: invoice.XMLURL
+                ? invoice.XMLURL.startsWith('/api/downloads/')
+                    ? invoice.XMLURL
                     : invoice.XMLURL.replace(/^downloads\//, '/api/downloads/').replace(/^\/downloads\//, '/api/downloads/')
                 : null,
         }));
