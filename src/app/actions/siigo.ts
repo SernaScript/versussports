@@ -127,31 +127,65 @@ export async function deleteSiigoCredential() {
     }
 }
 
+// --- Helper: Autenticación Reutilizable ---
+
+/**
+ * Obtiene un token de autenticación de Siigo
+ * @returns Token de acceso o null si hay error
+ */
+export async function getSiigoAuthToken(): Promise<{ token: string; partnerId: string } | null> {
+    try {
+        const credential = await prisma.siigoCredential.findFirst();
+        if (!credential) {
+            console.error("No hay credenciales de Siigo configuradas");
+            return null;
+        }
+
+        const authResponse = await fetch("https://api.siigo.com/auth", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                username: credential.username,
+                access_key: credential.accessKey,
+            }),
+            cache: 'no-store'
+        });
+
+        if (!authResponse.ok) {
+            console.error("Fallo autenticación con Siigo");
+            return null;
+        }
+
+        const { access_token } = await authResponse.json();
+        if (!access_token) {
+            console.error("No se recibió token de acceso");
+            return null;
+        }
+
+        return {
+            token: access_token,
+            partnerId: credential.partnerId || ""
+        };
+    } catch (error) {
+        console.error("Error obteniendo token de Siigo:", error);
+        return null;
+    }
+}
+
 // --- Journals (Comprobantes) ---
 
 export async function createJournal(journalData: any) {
     try {
-        const credential = await prisma.siigoCredential.findFirst();
-        if (!credential) return { success: false, error: "No hay credenciales de Siigo configuradas." };
-
-        // 1. Authenticate
-        const authResponse = await fetch("https://api.siigo.com/auth", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ username: credential.username, access_key: credential.accessKey }),
-            cache: 'no-store'
-        });
-
-        if (!authResponse.ok) return { success: false, error: "Fallo autenticación con Siigo al crear comprobante" };
-        const { access_token } = await authResponse.json();
+        const auth = await getSiigoAuthToken();
+        if (!auth) return { success: false, error: "No hay credenciales de Siigo configuradas o fallo autenticación." };
 
         // 2. Create Journal
-        const response = await fetch("https://api.siigo.com/v1/journals", {
+        const response = await fetch("https://api.siigo.com/v1/vouchers", {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
-                "Authorization": `Bearer ${access_token}`,
-                "Partner-Id": credential.partnerId || ""
+                "Authorization": `Bearer ${auth.token}`,
+                "Partner-Id": auth.partnerId
             },
             body: JSON.stringify(journalData)
         });

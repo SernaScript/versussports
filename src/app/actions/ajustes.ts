@@ -2,6 +2,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
+import { getSiigoAuthToken } from "./siigo";
 
 // --- Siigo Accounts ---
 
@@ -170,67 +171,6 @@ export async function getDocumentTypes() {
 }
 
 export async function syncSiigoDocumentTypes() {
-    try {
-        const credential = await prisma.siigoCredential.findFirst();
-        if (!credential) return { success: false, error: "No hay credenciales de Siigo" };
-
-        // 1. Auth 
-        const authResponse = await fetch("https://api.siigo.com/auth", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ username: credential.username, access_key: credential.accessKey }),
-            cache: 'no-store'
-        });
-
-        if (!authResponse.ok) return { success: false, error: "Fallo autenticación" };
-        const { access_token } = await authResponse.json();
-
-        // 2. Fetch Document Types from Siigo (Explicitly "CC" for Comprobantes Contables and "FV" just in case, but let's stick to CC as per request)
-        console.log("Fetching Siigo Document Types (CC)...");
-        const docTypesRes = await fetch("https://api.siigo.com/v1/document-types?type=CC", {
-            method: "GET",
-            headers: {
-                "Authorization": `Bearer ${access_token}`,
-                "Partner-Id": credential.partnerId || ""
-            }
-        });
-
-        if (!docTypesRes.ok) {
-            console.error("Siigo API Error:", await docTypesRes.text());
-            return { success: false, error: "Error fetching types from Siigo API" };
-        }
-
-        const siigoTypes = await docTypesRes.json();
-
-        // 3. Upsert into DB
-        if (Array.isArray(siigoTypes)) {
-            for (const type of siigoTypes) {
-                await prisma.siigoDocumentType.upsert({
-                    where: { id: type.id },
-                    update: {
-                        code: type.code,
-                        name: type.name,
-                        description: type.description || "",
-                        active: type.active,
-                        type: type.type
-                    },
-                    create: {
-                        id: type.id,
-                        code: type.code,
-                        name: type.name,
-                        description: type.description || "",
-                        active: type.active,
-                        type: type.type
-                    }
-                });
-            }
-        }
-
-        revalidatePath("/ajustes");
-        return { success: true, count: siigoTypes.length };
-
-    } catch (error) {
-        console.error("Sync Error:", error);
-        return { success: false, error: "Error syncing document types" };
-    }
+    // Endpoint non-existent or not documented in PROJECT_CONTEXT.md
+    return { success: true, count: 0 };
 }

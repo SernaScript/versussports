@@ -162,3 +162,87 @@ model SiigoDocumentType {
 
   @@map("siigo_document_types")
 }
+
+model SiigoSupplier {
+  id            String   @id @default(uuid())
+  siigoId       String   @unique // ID de Siigo (puede ser UUID o número como string)
+  identification String   // NIT o identificación
+  name          String
+  email         String?
+  phone         String?
+  address       String?
+  city          String?
+  active        Boolean  @default(true)
+  type          String?  // "Supplier", "Customer", etc.
+
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@map("siigo_suppliers")
+}
+
+model SiigoCostCenter {
+  id          String   @id @default(uuid())
+  siigoId     String   @unique // ID de Siigo (puede ser UUID o número como string)
+  code        String
+  name        String
+  active      Boolean  @default(true)
+
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("siigo_cost_centers")
+}
+
+model SiigoProduct {
+  id          String   @id @default(uuid())
+  siigoId     String   @unique // ID de Siigo (puede ser UUID o número como string)
+  code        String
+  name        String
+  description String?
+  active      Boolean  @default(true)
+
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("siigo_products")
+}
+
+model SiigoTax {
+  id          String   @id @default(uuid())
+  siigoId     String   @unique // ID de Siigo (puede ser UUID o número como string)
+  name        String
+  type        String?  // Tipo de impuesto
+  rate        Decimal? @db.Decimal(5, 2) // Porcentaje
+  active      Boolean  @default(true)
+
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("siigo_taxes")
+}
+
+model SiigoPaymentType {
+  id          String   @id @default(uuid())
+  siigoId     String   @unique // ID de Siigo (puede ser UUID o número como string)
+  name        String
+  active      Boolean  @default(true)
+
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("siigo_payment_types")
+}
+
+model SiigoCurrency {
+  id          String   @id @default(uuid())
+  code        String   @unique // Código de moneda (COP, USD, etc.)
+  name        String
+  symbol      String?
+  active      Boolean  @default(true)
+
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("siigo_currencies")
+}

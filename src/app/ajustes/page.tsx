@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Loader2, Upload, Plus, Trash2, Search, Check, Save, FileText, Landmark, RefreshCw, Settings2 } from "lucide-react";
+import { Loader2, Upload, Plus, Trash2, Search, Check, Save, FileText, Landmark, RefreshCw, Settings2, Users, Building2, Package, Receipt, CreditCard, Coins } from "lucide-react";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
 import {
@@ -21,6 +21,12 @@ import {
     getDocumentTypes,
     syncSiigoDocumentTypes
 } from "../actions/ajustes";
+import { getSuppliers, syncSiigoSuppliers, createSupplierInSiigo } from "../actions/suppliers";
+import { getCostCenters, syncSiigoCostCenters } from "../actions/cost-centers";
+import { getProducts, syncSiigoProducts, createProductInSiigo } from "../actions/products";
+import { getTaxes, syncSiigoTaxes } from "../actions/taxes";
+import { getPaymentTypes, syncSiigoPaymentTypes } from "../actions/payment-types";
+import { getCurrencies, syncSiigoCurrencies } from "../actions/currencies";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -30,7 +36,7 @@ import { cn } from "@/lib/utils";
 // --- Main Layout ---
 
 export default function AjustesPage() {
-    const [activeSection, setActiveSection] = useState<"general" | "vouchers" | "accounts" | "concepts">("vouchers");
+    const [activeSection, setActiveSection] = useState<"general" | "vouchers" | "accounts" | "concepts" | "suppliers" | "cost-centers" | "products" | "taxes" | "payment-types" | "currencies">("vouchers");
 
     return (
         <div className="flex flex-col md:flex-row h-[calc(100vh-4rem)]">
@@ -65,6 +71,45 @@ export default function AjustesPage() {
                     icon={<Settings2 className="w-4 h-4 mr-2" />}
                     label="Ajustes Generales"
                 />
+                <div className="pt-4 border-t mt-2">
+                    <p className="text-xs font-semibold text-gray-400 uppercase px-2 mb-2">Facturas de Compra</p>
+                </div>
+                <NavButton
+                    active={activeSection === "suppliers"}
+                    onClick={() => setActiveSection("suppliers")}
+                    icon={<Users className="w-4 h-4 mr-2" />}
+                    label="Proveedores"
+                />
+                <NavButton
+                    active={activeSection === "cost-centers"}
+                    onClick={() => setActiveSection("cost-centers")}
+                    icon={<Building2 className="w-4 h-4 mr-2" />}
+                    label="Centros de Costo"
+                />
+                <NavButton
+                    active={activeSection === "products"}
+                    onClick={() => setActiveSection("products")}
+                    icon={<Package className="w-4 h-4 mr-2" />}
+                    label="Productos"
+                />
+                <NavButton
+                    active={activeSection === "taxes"}
+                    onClick={() => setActiveSection("taxes")}
+                    icon={<Receipt className="w-4 h-4 mr-2" />}
+                    label="Impuestos"
+                />
+                <NavButton
+                    active={activeSection === "payment-types"}
+                    onClick={() => setActiveSection("payment-types")}
+                    icon={<CreditCard className="w-4 h-4 mr-2" />}
+                    label="Formas de Pago"
+                />
+                <NavButton
+                    active={activeSection === "currencies"}
+                    onClick={() => setActiveSection("currencies")}
+                    icon={<Coins className="w-4 h-4 mr-2" />}
+                    label="Monedas"
+                />
             </aside>
 
             {/* Content Range */}
@@ -73,6 +118,12 @@ export default function AjustesPage() {
                 {activeSection === "accounts" && <AccountsSection />}
                 {activeSection === "concepts" && <ConceptsSection />}
                 {activeSection === "general" && <GeneralSettingsSection />}
+                {activeSection === "suppliers" && <SuppliersSection />}
+                {activeSection === "cost-centers" && <CostCentersSection />}
+                {activeSection === "products" && <ProductsSection />}
+                {activeSection === "taxes" && <TaxesSection />}
+                {activeSection === "payment-types" && <PaymentTypesSection />}
+                {activeSection === "currencies" && <CurrenciesSection />}
             </main>
         </div>
     );
@@ -646,5 +697,651 @@ function AccountSelector({ value, onSelect }: { value: string, onSelect: (val: s
                 </Command>
             </PopoverContent>
         </Popover>
+    );
+}
+
+// --- New Sections for Purchase Invoices ---
+
+function SuppliersSection() {
+    const [suppliers, setSuppliers] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [syncing, setSyncing] = useState(false);
+    const [search, setSearch] = useState("");
+
+    useEffect(() => {
+        loadSuppliers();
+    }, []);
+
+    const loadSuppliers = async (query?: string) => {
+        setLoading(true);
+        const res = await getSuppliers(query);
+        if (res.success && res.data) {
+            setSuppliers(res.data);
+        }
+        setLoading(false);
+    };
+
+    const handleSync = async () => {
+        setSyncing(true);
+        const res = await syncSiigoSuppliers();
+        setSyncing(false);
+        if (res.success) {
+            toast.success(`Se sincronizaron ${res.count} proveedores.`);
+            loadSuppliers();
+        } else {
+            toast.error(res.error);
+        }
+    };
+
+    const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setSearch(e.target.value);
+        loadSuppliers(e.target.value);
+    };
+
+    return (
+        <div className="space-y-6 max-w-4xl">
+            <div>
+                <h2 className="text-2xl font-bold tracking-tight">Proveedores</h2>
+                <p className="text-muted-foreground">Gestiona los proveedores sincronizados con Siigo.</p>
+            </div>
+
+            <Card>
+                <CardHeader>
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <CardTitle>Proveedores Sincronizados</CardTitle>
+                            <CardDescription>Lista de proveedores disponibles para facturas de compra.</CardDescription>
+                        </div>
+                        <Button onClick={handleSync} disabled={syncing}>
+                            {syncing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
+                            Sincronizar desde Siigo
+                        </Button>
+                    </div>
+                </CardHeader>
+                <CardContent>
+                    <div className="relative mb-4">
+                        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                        <Input
+                            placeholder="Buscar proveedor..."
+                            className="pl-8"
+                            value={search}
+                            onChange={handleSearch}
+                        />
+                    </div>
+                    {loading ? (
+                        <LoadingSection />
+                    ) : (
+                        <div className="rounded-md border bg-white overflow-hidden">
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>NIT</TableHead>
+                                        <TableHead>Nombre</TableHead>
+                                        <TableHead>Email</TableHead>
+                                        <TableHead>Teléfono</TableHead>
+                                        <TableHead>Estado</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {suppliers.length === 0 ? (
+                                        <TableRow>
+                                            <TableCell colSpan={5} className="text-center py-8 text-gray-500">No hay proveedores sincronizados. Haz clic en Sincronizar.</TableCell>
+                                        </TableRow>
+                                    ) : (
+                                        suppliers.map((s) => (
+                                            <TableRow key={s.id}>
+                                                <TableCell className="font-medium">{s.identification}</TableCell>
+                                                <TableCell>{s.name}</TableCell>
+                                                <TableCell>{s.email || "-"}</TableCell>
+                                                <TableCell>{s.phone || "-"}</TableCell>
+                                                <TableCell>
+                                                    <Badge variant={s.active ? "outline" : "secondary"}>
+                                                        {s.active ? "Activo" : "Inactivo"}
+                                                    </Badge>
+                                                </TableCell>
+                                            </TableRow>
+                                        ))
+                                    )}
+                                </TableBody>
+                            </Table>
+                        </div>
+                    )}
+                </CardContent>
+            </Card>
+        </div>
+    );
+}
+
+function CostCentersSection() {
+    const [costCenters, setCostCenters] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [syncing, setSyncing] = useState(false);
+    const [search, setSearch] = useState("");
+
+    useEffect(() => {
+        loadCostCenters();
+    }, []);
+
+    const loadCostCenters = async (query?: string) => {
+        setLoading(true);
+        const res = await getCostCenters(query);
+        if (res.success && res.data) {
+            setCostCenters(res.data);
+        }
+        setLoading(false);
+    };
+
+    const handleSync = async () => {
+        setSyncing(true);
+        const res = await syncSiigoCostCenters();
+        setSyncing(false);
+        if (res.success) {
+            toast.success(`Se sincronizaron ${res.count} centros de costo.`);
+            loadCostCenters();
+        } else {
+            toast.error(res.error);
+        }
+    };
+
+    const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setSearch(e.target.value);
+        loadCostCenters(e.target.value);
+    };
+
+    return (
+        <div className="space-y-6 max-w-4xl">
+            <div>
+                <h2 className="text-2xl font-bold tracking-tight">Centros de Costo</h2>
+                <p className="text-muted-foreground">Gestiona los centros de costo sincronizados con Siigo.</p>
+            </div>
+
+            <Card>
+                <CardHeader>
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <CardTitle>Centros de Costo Sincronizados</CardTitle>
+                            <CardDescription>Lista de centros de costo disponibles.</CardDescription>
+                        </div>
+                        <Button onClick={handleSync} disabled={syncing}>
+                            {syncing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
+                            Sincronizar desde Siigo
+                        </Button>
+                    </div>
+                </CardHeader>
+                <CardContent>
+                    <div className="relative mb-4">
+                        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                        <Input
+                            placeholder="Buscar centro de costo..."
+                            className="pl-8"
+                            value={search}
+                            onChange={handleSearch}
+                        />
+                    </div>
+                    {loading ? (
+                        <LoadingSection />
+                    ) : (
+                        <div className="rounded-md border bg-white overflow-hidden">
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>Código</TableHead>
+                                        <TableHead>Nombre</TableHead>
+                                        <TableHead>Estado</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {costCenters.length === 0 ? (
+                                        <TableRow>
+                                            <TableCell colSpan={3} className="text-center py-8 text-gray-500">No hay centros de costo sincronizados. Haz clic en Sincronizar.</TableCell>
+                                        </TableRow>
+                                    ) : (
+                                        costCenters.map((cc) => (
+                                            <TableRow key={cc.id}>
+                                                <TableCell className="font-medium">{cc.code}</TableCell>
+                                                <TableCell>{cc.name}</TableCell>
+                                                <TableCell>
+                                                    <Badge variant={cc.active ? "outline" : "secondary"}>
+                                                        {cc.active ? "Activo" : "Inactivo"}
+                                                    </Badge>
+                                                </TableCell>
+                                            </TableRow>
+                                        ))
+                                    )}
+                                </TableBody>
+                            </Table>
+                        </div>
+                    )}
+                </CardContent>
+            </Card>
+        </div>
+    );
+}
+
+function ProductsSection() {
+    const [products, setProducts] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [syncing, setSyncing] = useState(false);
+    const [search, setSearch] = useState("");
+
+    useEffect(() => {
+        loadProducts();
+    }, []);
+
+    const loadProducts = async (query?: string) => {
+        setLoading(true);
+        const res = await getProducts(query);
+        if (res.success && res.data) {
+            setProducts(res.data);
+        }
+        setLoading(false);
+    };
+
+    const handleSync = async () => {
+        setSyncing(true);
+        const res = await syncSiigoProducts();
+        setSyncing(false);
+        if (res.success) {
+            toast.success(`Se sincronizaron ${res.count} productos.`);
+            loadProducts();
+        } else {
+            toast.error(res.error);
+        }
+    };
+
+    const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setSearch(e.target.value);
+        loadProducts(e.target.value);
+    };
+
+    return (
+        <div className="space-y-6 max-w-4xl">
+            <div>
+                <h2 className="text-2xl font-bold tracking-tight">Productos</h2>
+                <p className="text-muted-foreground">Gestiona los productos sincronizados con Siigo.</p>
+            </div>
+
+            <Card>
+                <CardHeader>
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <CardTitle>Productos Sincronizados</CardTitle>
+                            <CardDescription>Lista de productos disponibles para facturas de compra.</CardDescription>
+                        </div>
+                        <Button onClick={handleSync} disabled={syncing}>
+                            {syncing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
+                            Sincronizar desde Siigo
+                        </Button>
+                    </div>
+                </CardHeader>
+                <CardContent>
+                    <div className="relative mb-4">
+                        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                        <Input
+                            placeholder="Buscar producto..."
+                            className="pl-8"
+                            value={search}
+                            onChange={handleSearch}
+                        />
+                    </div>
+                    {loading ? (
+                        <LoadingSection />
+                    ) : (
+                        <div className="rounded-md border bg-white overflow-hidden">
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>Código</TableHead>
+                                        <TableHead>Nombre</TableHead>
+                                        <TableHead>Descripción</TableHead>
+                                        <TableHead>Estado</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {products.length === 0 ? (
+                                        <TableRow>
+                                            <TableCell colSpan={4} className="text-center py-8 text-gray-500">No hay productos sincronizados. Haz clic en Sincronizar.</TableCell>
+                                        </TableRow>
+                                    ) : (
+                                        products.map((p) => (
+                                            <TableRow key={p.id}>
+                                                <TableCell className="font-medium">{p.code}</TableCell>
+                                                <TableCell>{p.name}</TableCell>
+                                                <TableCell>{p.description || "-"}</TableCell>
+                                                <TableCell>
+                                                    <Badge variant={p.active ? "outline" : "secondary"}>
+                                                        {p.active ? "Activo" : "Inactivo"}
+                                                    </Badge>
+                                                </TableCell>
+                                            </TableRow>
+                                        ))
+                                    )}
+                                </TableBody>
+                            </Table>
+                        </div>
+                    )}
+                </CardContent>
+            </Card>
+        </div>
+    );
+}
+
+function TaxesSection() {
+    const [taxes, setTaxes] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [syncing, setSyncing] = useState(false);
+    const [search, setSearch] = useState("");
+
+    useEffect(() => {
+        loadTaxes();
+    }, []);
+
+    const loadTaxes = async (query?: string) => {
+        setLoading(true);
+        const res = await getTaxes(query);
+        if (res.success && res.data) {
+            setTaxes(res.data);
+        }
+        setLoading(false);
+    };
+
+    const handleSync = async () => {
+        setSyncing(true);
+        const res = await syncSiigoTaxes();
+        setSyncing(false);
+        if (res.success) {
+            toast.success(`Se sincronizaron ${res.count} impuestos.`);
+            loadTaxes();
+        } else {
+            toast.error(res.error);
+        }
+    };
+
+    const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setSearch(e.target.value);
+        loadTaxes(e.target.value);
+    };
+
+    return (
+        <div className="space-y-6 max-w-4xl">
+            <div>
+                <h2 className="text-2xl font-bold tracking-tight">Impuestos</h2>
+                <p className="text-muted-foreground">Gestiona los impuestos sincronizados con Siigo.</p>
+            </div>
+
+            <Card>
+                <CardHeader>
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <CardTitle>Impuestos Sincronizados</CardTitle>
+                            <CardDescription>Lista de impuestos disponibles para facturas de compra.</CardDescription>
+                        </div>
+                        <Button onClick={handleSync} disabled={syncing}>
+                            {syncing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
+                            Sincronizar desde Siigo
+                        </Button>
+                    </div>
+                </CardHeader>
+                <CardContent>
+                    <div className="relative mb-4">
+                        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                        <Input
+                            placeholder="Buscar impuesto..."
+                            className="pl-8"
+                            value={search}
+                            onChange={handleSearch}
+                        />
+                    </div>
+                    {loading ? (
+                        <LoadingSection />
+                    ) : (
+                        <div className="rounded-md border bg-white overflow-hidden">
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>Nombre</TableHead>
+                                        <TableHead>Tipo</TableHead>
+                                        <TableHead>Tasa (%)</TableHead>
+                                        <TableHead>Estado</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {taxes.length === 0 ? (
+                                        <TableRow>
+                                            <TableCell colSpan={4} className="text-center py-8 text-gray-500">No hay impuestos sincronizados. Haz clic en Sincronizar.</TableCell>
+                                        </TableRow>
+                                    ) : (
+                                        taxes.map((t) => (
+                                            <TableRow key={t.id}>
+                                                <TableCell className="font-medium">{t.name}</TableCell>
+                                                <TableCell>{t.type || "-"}</TableCell>
+                                                <TableCell>{t.rate ? `${t.rate}%` : "-"}</TableCell>
+                                                <TableCell>
+                                                    <Badge variant={t.active ? "outline" : "secondary"}>
+                                                        {t.active ? "Activo" : "Inactivo"}
+                                                    </Badge>
+                                                </TableCell>
+                                            </TableRow>
+                                        ))
+                                    )}
+                                </TableBody>
+                            </Table>
+                        </div>
+                    )}
+                </CardContent>
+            </Card>
+        </div>
+    );
+}
+
+function PaymentTypesSection() {
+    const [paymentTypes, setPaymentTypes] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [syncing, setSyncing] = useState(false);
+    const [search, setSearch] = useState("");
+
+    useEffect(() => {
+        loadPaymentTypes();
+    }, []);
+
+    const loadPaymentTypes = async (query?: string) => {
+        setLoading(true);
+        const res = await getPaymentTypes(query);
+        if (res.success && res.data) {
+            setPaymentTypes(res.data);
+        }
+        setLoading(false);
+    };
+
+    const handleSync = async () => {
+        setSyncing(true);
+        const res = await syncSiigoPaymentTypes();
+        setSyncing(false);
+        if (res.success) {
+            toast.success(`Se sincronizaron ${res.count} formas de pago.`);
+            loadPaymentTypes();
+        } else {
+            toast.error(res.error);
+        }
+    };
+
+    const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setSearch(e.target.value);
+        loadPaymentTypes(e.target.value);
+    };
+
+    return (
+        <div className="space-y-6 max-w-4xl">
+            <div>
+                <h2 className="text-2xl font-bold tracking-tight">Formas de Pago</h2>
+                <p className="text-muted-foreground">Gestiona las formas de pago sincronizadas con Siigo.</p>
+            </div>
+
+            <Card>
+                <CardHeader>
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <CardTitle>Formas de Pago Sincronizadas</CardTitle>
+                            <CardDescription>Lista de formas de pago disponibles para facturas de compra.</CardDescription>
+                        </div>
+                        <Button onClick={handleSync} disabled={syncing}>
+                            {syncing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
+                            Sincronizar desde Siigo
+                        </Button>
+                    </div>
+                </CardHeader>
+                <CardContent>
+                    <div className="relative mb-4">
+                        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                        <Input
+                            placeholder="Buscar forma de pago..."
+                            className="pl-8"
+                            value={search}
+                            onChange={handleSearch}
+                        />
+                    </div>
+                    {loading ? (
+                        <LoadingSection />
+                    ) : (
+                        <div className="rounded-md border bg-white overflow-hidden">
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>Nombre</TableHead>
+                                        <TableHead>Estado</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {paymentTypes.length === 0 ? (
+                                        <TableRow>
+                                            <TableCell colSpan={2} className="text-center py-8 text-gray-500">No hay formas de pago sincronizadas. Haz clic en Sincronizar.</TableCell>
+                                        </TableRow>
+                                    ) : (
+                                        paymentTypes.map((pt) => (
+                                            <TableRow key={pt.id}>
+                                                <TableCell className="font-medium">{pt.name}</TableCell>
+                                                <TableCell>
+                                                    <Badge variant={pt.active ? "outline" : "secondary"}>
+                                                        {pt.active ? "Activo" : "Inactivo"}
+                                                    </Badge>
+                                                </TableCell>
+                                            </TableRow>
+                                        ))
+                                    )}
+                                </TableBody>
+                            </Table>
+                        </div>
+                    )}
+                </CardContent>
+            </Card>
+        </div>
+    );
+}
+
+function CurrenciesSection() {
+    const [currencies, setCurrencies] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [syncing, setSyncing] = useState(false);
+    const [search, setSearch] = useState("");
+
+    useEffect(() => {
+        loadCurrencies();
+    }, []);
+
+    const loadCurrencies = async (query?: string) => {
+        setLoading(true);
+        const res = await getCurrencies(query);
+        if (res.success && res.data) {
+            setCurrencies(res.data);
+        }
+        setLoading(false);
+    };
+
+    const handleSync = async () => {
+        setSyncing(true);
+        const res = await syncSiigoCurrencies();
+        setSyncing(false);
+        if (res.success) {
+            toast.success(`Se sincronizaron ${res.count} monedas.`);
+            loadCurrencies();
+        } else {
+            toast.error(res.error);
+        }
+    };
+
+    const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setSearch(e.target.value);
+        loadCurrencies(e.target.value);
+    };
+
+    return (
+        <div className="space-y-6 max-w-4xl">
+            <div>
+                <h2 className="text-2xl font-bold tracking-tight">Monedas</h2>
+                <p className="text-muted-foreground">Gestiona las monedas sincronizadas con Siigo.</p>
+            </div>
+
+            <Card>
+                <CardHeader>
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <CardTitle>Monedas Sincronizadas</CardTitle>
+                            <CardDescription>Lista de monedas disponibles para facturas de compra.</CardDescription>
+                        </div>
+                        <Button onClick={handleSync} disabled={syncing}>
+                            {syncing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
+                            Sincronizar desde Siigo
+                        </Button>
+                    </div>
+                </CardHeader>
+                <CardContent>
+                    <div className="relative mb-4">
+                        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                        <Input
+                            placeholder="Buscar moneda..."
+                            className="pl-8"
+                            value={search}
+                            onChange={handleSearch}
+                        />
+                    </div>
+                    {loading ? (
+                        <LoadingSection />
+                    ) : (
+                        <div className="rounded-md border bg-white overflow-hidden">
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>Código</TableHead>
+                                        <TableHead>Nombre</TableHead>
+                                        <TableHead>Símbolo</TableHead>
+                                        <TableHead>Estado</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {currencies.length === 0 ? (
+                                        <TableRow>
+                                            <TableCell colSpan={4} className="text-center py-8 text-gray-500">No hay monedas sincronizadas. Haz clic en Sincronizar.</TableCell>
+                                        </TableRow>
+                                    ) : (
+                                        currencies.map((c) => (
+                                            <TableRow key={c.id}>
+                                                <TableCell className="font-medium">{c.code}</TableCell>
+                                                <TableCell>{c.name}</TableCell>
+                                                <TableCell>{c.symbol || "-"}</TableCell>
+                                                <TableCell>
+                                                    <Badge variant={c.active ? "outline" : "secondary"}>
+                                                        {c.active ? "Activo" : "Inactivo"}
+                                                    </Badge>
+                                                </TableCell>
+                                            </TableRow>
+                                        ))
+                                    )}
+                                </TableBody>
+                            </Table>
+                        </div>
+                    )}
+                </CardContent>
+            </Card>
+        </div>
     );
 }
