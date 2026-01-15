@@ -115,6 +115,7 @@ model SiigoAccount {
   active      Boolean  @default(true)
   
   expenseConcepts BankExpenseConcept[]
+  providerExpenseConfigs ProviderAccountingConfig[] @relation("ProviderExpenseAccount")
 
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
@@ -216,10 +217,27 @@ model SiigoTax {
   rate        Decimal? @db.Decimal(5, 2) // Porcentaje
   active      Boolean  @default(true)
 
+  providerWithholdingConfigs ProviderAccountingConfig[] @relation("ProviderWithholdingTax")
+
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
   @@map("siigo_taxes")
+}
+
+model ProviderAccountingConfig {
+  providerNit String @id @map("provider_nit")
+
+  expenseAccountId String?     @map("expense_account_id")
+  expenseAccount   SiigoAccount? @relation("ProviderExpenseAccount", fields: [expenseAccountId], references: [id])
+
+  withholdingTaxId String?   @map("withholding_tax_id")
+  withholdingTax   SiigoTax? @relation("ProviderWithholdingTax", fields: [withholdingTaxId], references: [id])
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("provider_accounting_configs")
 }
 
 model SiigoPaymentType {

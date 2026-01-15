@@ -99,6 +99,32 @@ export async function saveDianInvoices(invoices: ProcessedDianInvoice[]) {
             };
         });
 
+        // Ensure provider accounting configs exist (insert-if-missing by provider NIT).
+        // provider_nit is stored "as-is" with trim().
+        try {
+            const uniqueProviderNits = Array.from(
+                new Set(
+                    formattedInvoices
+                        .map((inv) => (inv.issuerNit || "").trim())
+                        .filter((nit) => nit.length > 0)
+                )
+            );
+
+            if (uniqueProviderNits.length > 0) {
+                await prisma.providerAccountingConfig.createMany({
+                    data: uniqueProviderNits.map((nit) => ({
+                        providerNit: nit,
+                        expenseAccountId: null,
+                        withholdingTaxId: null,
+                    })),
+                    skipDuplicates: true,
+                });
+            }
+        } catch (error) {
+            // Don't block invoice ingestion if provider config pre-creation fails.
+            console.error("Error pre-creating provider accounting configs:", error);
+        }
+
         // Usar upsert para evitar duplicados (crear o actualizar)
         let savedCount = 0;
         let skippedCount = 0;

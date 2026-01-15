@@ -27,6 +27,7 @@ import { getProducts, syncSiigoProducts, createProductInSiigo } from "../actions
 import { getTaxes, syncSiigoTaxes } from "../actions/taxes";
 import { getPaymentTypes, syncSiigoPaymentTypes } from "../actions/payment-types";
 import { getCurrencies, syncSiigoCurrencies } from "../actions/currencies";
+import { getProviderAccountingConfigs, getWithholdingTaxes, upsertProviderAccountingConfig } from "../actions/provider-accounting-configs";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -36,7 +37,7 @@ import { cn } from "@/lib/utils";
 // --- Main Layout ---
 
 export default function AjustesPage() {
-    const [activeSection, setActiveSection] = useState<"general" | "vouchers" | "accounts" | "concepts" | "suppliers" | "cost-centers" | "products" | "taxes" | "payment-types" | "currencies">("vouchers");
+    const [activeSection, setActiveSection] = useState<"general" | "vouchers" | "accounts" | "concepts" | "suppliers" | "provider-configs" | "cost-centers" | "products" | "taxes" | "payment-types" | "currencies">("vouchers");
 
     return (
         <div className="flex flex-col md:flex-row h-[calc(100vh-4rem)]">
@@ -81,6 +82,12 @@ export default function AjustesPage() {
                     label="Proveedores"
                 />
                 <NavButton
+                    active={activeSection === "provider-configs"}
+                    onClick={() => setActiveSection("provider-configs")}
+                    icon={<Settings2 className="w-4 h-4 mr-2" />}
+                    label="Config. Terceros"
+                />
+                <NavButton
                     active={activeSection === "cost-centers"}
                     onClick={() => setActiveSection("cost-centers")}
                     icon={<Building2 className="w-4 h-4 mr-2" />}
@@ -119,6 +126,7 @@ export default function AjustesPage() {
                 {activeSection === "concepts" && <ConceptsSection />}
                 {activeSection === "general" && <GeneralSettingsSection />}
                 {activeSection === "suppliers" && <SuppliersSection />}
+                {activeSection === "provider-configs" && <ProviderConfigsSection />}
                 {activeSection === "cost-centers" && <CostCentersSection />}
                 {activeSection === "products" && <ProductsSection />}
                 {activeSection === "taxes" && <TaxesSection />}
@@ -170,7 +178,7 @@ function VouchersSection() {
             toast.success(`Se sincronizaron ${res.count} tipos de comprobante.`);
             loadTypes();
         } else {
-            toast.error(res.error);
+            toast.error(("error" in res && res.error) ? (res as any).error : "Error al sincronizar tipos de comprobante");
         }
     };
 
@@ -812,6 +820,307 @@ function SuppliersSection() {
     );
 }
 
+function AccountIdSelector({ value, onSelect }: { value: string | null, onSelect: (val: string | null) => void }) {
+    const [open, setOpen] = useState(false);
+    const [search, setSearch] = useState("");
+    const [accounts, setAccounts] = useState<any[]>([]);
+
+    useEffect(() => {
+        const fetch = async () => {
+            const res = await getSiigoAccounts(search);
+            if (res.success && res.data) {
+                setAccounts(res.data);
+            }
+        };
+        fetch();
+    }, [search]);
+
+    const selectedAccount = value ? accounts.find(a => a.id === value) : null;
+
+    return (
+        <Popover open={open} onOpenChange={setOpen}>
+            <PopoverTrigger asChild>
+                <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={open}
+                    className="w-full justify-between font-normal"
+                >
+                    {value ? (
+                        selectedAccount ? `${selectedAccount.code} - ${selectedAccount.name}` : value
+                    ) : (
+                        "Sin configurar"
+                    )}
+                    <Search className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-[420px] p-0">
+                <Command shouldFilter={false}>
+                    <CommandInput placeholder="Buscar por código o nombre..." onValueChange={setSearch} />
+                    <CommandList>
+                        <CommandEmpty>No se encontraron resultados.</CommandEmpty>
+                        <CommandGroup>
+                            <CommandItem
+                                key="__null__"
+                                value="__null__"
+                                onSelect={() => {
+                                    onSelect(null);
+                                    setOpen(false);
+                                }}
+                            >
+                                <Check className={cn("mr-2 h-4 w-4", !value ? "opacity-100" : "opacity-0")} />
+                                <span className="text-sm">Sin configurar</span>
+                            </CommandItem>
+                            {accounts.map((account) => (
+                                <CommandItem
+                                    key={account.id}
+                                    value={`${account.code} ${account.name}`}
+                                    onSelect={() => {
+                                        onSelect(account.id);
+                                        setOpen(false);
+                                    }}
+                                >
+                                    <Check
+                                        className={cn(
+                                            "mr-2 h-4 w-4",
+                                            value === account.id ? "opacity-100" : "opacity-0"
+                                        )}
+                                    />
+                                    <div className="flex flex-col">
+                                        <span className="font-bold">{account.code}</span>
+                                        <span className="text-xs text-muted-foreground">{account.name}</span>
+                                    </div>
+                                </CommandItem>
+                            ))}
+                        </CommandGroup>
+                    </CommandList>
+                </Command>
+            </PopoverContent>
+        </Popover>
+    );
+}
+
+function WithholdingTaxSelector({ value, onSelect }: { value: string | null, onSelect: (val: string | null) => void }) {
+    const [open, setOpen] = useState(false);
+    const [search, setSearch] = useState("");
+    const [taxes, setTaxes] = useState<any[]>([]);
+
+    useEffect(() => {
+        const fetch = async () => {
+            const res = await getWithholdingTaxes(search);
+            if (res.success && res.data) {
+                setTaxes(res.data);
+            }
+        };
+        fetch();
+    }, [search]);
+
+    const selectedTax = value ? taxes.find(t => t.id === value) : null;
+    const selectedLabel = selectedTax
+        ? `${selectedTax.name}${selectedTax.rate != null ? ` (${selectedTax.rate}%)` : ""} - ${selectedTax.type || ""}`
+        : value;
+
+    return (
+        <Popover open={open} onOpenChange={setOpen}>
+            <PopoverTrigger asChild>
+                <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={open}
+                    className="w-full justify-between font-normal"
+                >
+                    {value ? (selectedLabel) : "Sin configurar"}
+                    <Search className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-[460px] p-0">
+                <Command shouldFilter={false}>
+                    <CommandInput placeholder="Buscar por nombre o ID Siigo..." onValueChange={setSearch} />
+                    <CommandList>
+                        <CommandEmpty>No se encontraron resultados.</CommandEmpty>
+                        <CommandGroup>
+                            <CommandItem
+                                key="__null__"
+                                value="__null__"
+                                onSelect={() => {
+                                    onSelect(null);
+                                    setOpen(false);
+                                }}
+                            >
+                                <Check className={cn("mr-2 h-4 w-4", !value ? "opacity-100" : "opacity-0")} />
+                                <span className="text-sm">Sin configurar</span>
+                            </CommandItem>
+                            {taxes.map((tax) => (
+                                <CommandItem
+                                    key={tax.id}
+                                    value={`${tax.name} ${tax.siigoId} ${tax.type || ""}`}
+                                    onSelect={() => {
+                                        onSelect(tax.id);
+                                        setOpen(false);
+                                    }}
+                                >
+                                    <Check
+                                        className={cn(
+                                            "mr-2 h-4 w-4",
+                                            value === tax.id ? "opacity-100" : "opacity-0"
+                                        )}
+                                    />
+                                    <div className="flex flex-col">
+                                        <span className="font-medium">{tax.name}</span>
+                                        <span className="text-xs text-muted-foreground">
+                                            {tax.type || "-"} · SiigoId: {tax.siigoId}{tax.rate != null ? ` · ${tax.rate}%` : ""}
+                                        </span>
+                                    </div>
+                                </CommandItem>
+                            ))}
+                        </CommandGroup>
+                    </CommandList>
+                </Command>
+            </PopoverContent>
+        </Popover>
+    );
+}
+
+function ProviderConfigsSection() {
+    const [configs, setConfigs] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [search, setSearch] = useState("");
+    const [drafts, setDrafts] = useState<Record<string, { expenseAccountId: string | null; withholdingTaxId: string | null }>>({});
+    const [savingNit, setSavingNit] = useState<string | null>(null);
+
+    useEffect(() => {
+        loadConfigs();
+    }, []);
+
+    const loadConfigs = async (query?: string) => {
+        setLoading(true);
+        const res = await getProviderAccountingConfigs(query);
+        if (res.success && res.data) {
+            setConfigs(res.data);
+            const nextDrafts: Record<string, { expenseAccountId: string | null; withholdingTaxId: string | null }> = {};
+            for (const c of res.data) {
+                nextDrafts[c.providerNit] = {
+                    expenseAccountId: c.expenseAccountId ?? null,
+                    withholdingTaxId: c.withholdingTaxId ?? null
+                };
+            }
+            setDrafts(nextDrafts);
+        }
+        setLoading(false);
+    };
+
+    const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const val = e.target.value;
+        setSearch(val);
+        loadConfigs(val);
+    };
+
+    const handleSave = async (providerNit: string) => {
+        const draft = drafts[providerNit];
+        if (!draft) return;
+        setSavingNit(providerNit);
+        const res = await upsertProviderAccountingConfig({
+            providerNit,
+            expenseAccountId: draft.expenseAccountId,
+            withholdingTaxId: draft.withholdingTaxId
+        });
+        setSavingNit(null);
+        if (res.success) {
+            toast.success("Configuración guardada");
+            loadConfigs(search);
+        } else {
+            toast.error(("error" in res && (res as any).error) ? (res as any).error : "Error al guardar configuración");
+        }
+    };
+
+    return (
+        <div className="space-y-6 max-w-6xl">
+            <div>
+                <h2 className="text-2xl font-bold tracking-tight">Configuración de Terceros</h2>
+                <p className="text-muted-foreground">Define cuenta de gasto e impuesto de retención por proveedor (NIT).</p>
+            </div>
+
+            <Card>
+                <CardHeader>
+                    <div className="relative">
+                        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                        <Input
+                            placeholder="Buscar por NIT..."
+                            className="pl-8"
+                            value={search}
+                            onChange={handleSearch}
+                        />
+                    </div>
+                </CardHeader>
+                <CardContent>
+                    {loading ? (
+                        <LoadingSection />
+                    ) : (
+                        <div className="rounded-md border bg-white overflow-hidden">
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>NIT</TableHead>
+                                        <TableHead>Cuenta de gasto</TableHead>
+                                        <TableHead>Retención</TableHead>
+                                        <TableHead>Estado</TableHead>
+                                        <TableHead className="text-right">Acciones</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {configs.length === 0 ? (
+                                        <TableRow>
+                                            <TableCell colSpan={5} className="text-center py-8 text-gray-500">
+                                                No hay proveedores pendientes por configurar (o no hay coincidencias).
+                                            </TableCell>
+                                        </TableRow>
+                                    ) : (
+                                        configs.map((c) => {
+                                            const d = drafts[c.providerNit] || { expenseAccountId: null, withholdingTaxId: null };
+                                            const isPending = !d.expenseAccountId || !d.withholdingTaxId;
+                                            return (
+                                                <TableRow key={c.providerNit}>
+                                                    <TableCell className="font-medium">{c.providerNit}</TableCell>
+                                                    <TableCell className="min-w-[320px]">
+                                                        <AccountIdSelector
+                                                            value={d.expenseAccountId}
+                                                            onSelect={(val) => setDrafts(prev => ({ ...prev, [c.providerNit]: { ...d, expenseAccountId: val } }))}
+                                                        />
+                                                    </TableCell>
+                                                    <TableCell className="min-w-[360px]">
+                                                        <WithholdingTaxSelector
+                                                            value={d.withholdingTaxId}
+                                                            onSelect={(val) => setDrafts(prev => ({ ...prev, [c.providerNit]: { ...d, withholdingTaxId: val } }))}
+                                                        />
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        <Badge variant={isPending ? "secondary" : "outline"}>
+                                                            {isPending ? "Pendiente" : "Configurado"}
+                                                        </Badge>
+                                                    </TableCell>
+                                                    <TableCell className="text-right">
+                                                        <Button
+                                                            onClick={() => handleSave(c.providerNit)}
+                                                            disabled={savingNit === c.providerNit}
+                                                        >
+                                                            {savingNit === c.providerNit ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
+                                                            Guardar
+                                                        </Button>
+                                                    </TableCell>
+                                                </TableRow>
+                                            );
+                                        })
+                                    )}
+                                </TableBody>
+                            </Table>
+                        </div>
+                    )}
+                </CardContent>
+            </Card>
+        </div>
+    );
+}
+
 function CostCentersSection() {
     const [costCenters, setCostCenters] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
@@ -1053,7 +1362,7 @@ function TaxesSection() {
             toast.success(`Se sincronizaron ${res.count} impuestos.`);
             loadTaxes();
         } else {
-            toast.error(res.error);
+            toast.error(("error" in res && res.error) ? (res as any).error : "Error al sincronizar impuestos");
         }
     };
 
