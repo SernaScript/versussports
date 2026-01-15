@@ -73,6 +73,38 @@ export async function getSiigoAccounts(query?: string) {
     }
 }
 
+export async function getExpenseAccounts(query?: string) {
+    try {
+        const q = query?.trim();
+        const where = {
+            AND: [
+                {
+                    OR: [
+                        { code: { startsWith: "5" } },
+                        { code: { startsWith: "6" } },
+                        { code: { startsWith: "7" } }
+                    ]
+                },
+                ...(q ? [{
+                    OR: [
+                        { name: { contains: q, mode: "insensitive" as const } },
+                        { code: { contains: q } }
+                    ]
+                }] : [])
+            ]
+        };
+
+        const accounts = await prisma.siigoAccount.findMany({
+            where: where as any,
+            orderBy: { code: "asc" },
+            take: 50
+        });
+        return { success: true, data: accounts };
+    } catch (error) {
+        return { success: false, error: "Error fetching expense accounts" };
+    }
+}
+
 // --- Siigo Settings ---
 
 export async function getSiigoSettings() {

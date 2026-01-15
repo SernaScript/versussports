@@ -13,6 +13,7 @@ import * as XLSX from "xlsx";
 import {
     upsertSiigoAccounts,
     getSiigoAccounts,
+    getExpenseAccounts,
     getSiigoSettings,
     saveSiigoSettings,
     getDianReceiverNameByNit,
@@ -870,7 +871,7 @@ function AccountIdSelector({ value, onSelect }: { value: string | null, onSelect
 
     useEffect(() => {
         const fetch = async () => {
-            const res = await getSiigoAccounts(search);
+            const res = await getExpenseAccounts(search);
             if (res.success && res.data) {
                 setAccounts(res.data);
             }
