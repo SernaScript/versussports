@@ -48,6 +48,7 @@ export interface InvoiceHeader {
     totalTaxAmount: number;
     taxSubtotals: TaxSubtotal[];
     legalMonetaryTotal: LegalMonetaryTotal | null;
+    issueDate?: string;
 }
 
 /**
@@ -230,7 +231,7 @@ export function parseInvoiceHeader(xmlContent: string): InvoiceHeader | null {
         // Intentar separar por el último grupo de números
         let prefix = "";
         let folio = "";
-        
+
         if (documentId) {
             // Buscar el último grupo de letras al inicio (prefijo)
             const prefixMatch = documentId.match(/^([A-Za-z]+)/);
@@ -249,12 +250,16 @@ export function parseInvoiceHeader(xmlContent: string): InvoiceHeader | null {
             }
         }
 
+        // Extraer fecha de emisión
+        const issueDateElement = xmlDoc.getElementsByTagNameNS(namespaces.cbc, "IssueDate")[0];
+        const issueDate = issueDateElement?.textContent?.trim() || "";
+
         // Extraer nombre del proveedor
         const supplierParty = xmlDoc.getElementsByTagNameNS(
             namespaces.cac,
             "AccountingSupplierParty"
         )[0];
-        
+
         let issuerName = "";
         if (supplierParty) {
             const partyName = supplierParty
@@ -270,7 +275,7 @@ export function parseInvoiceHeader(xmlContent: string): InvoiceHeader | null {
 
         // Buscar todos los TaxTotal, pero solo el que está a nivel de factura (no dentro de InvoiceLine)
         const allTaxTotals = xmlDoc.getElementsByTagNameNS(namespaces.cac, "TaxTotal");
-        
+
         // El TaxTotal principal es el que está fuera de InvoiceLine
         // Buscamos el que está directamente bajo Invoice (no dentro de InvoiceLine)
         for (let i = 0; i < allTaxTotals.length; i++) {
@@ -453,6 +458,7 @@ export function parseInvoiceHeader(xmlContent: string): InvoiceHeader | null {
             totalTaxAmount,
             taxSubtotals,
             legalMonetaryTotal,
+            issueDate,
         };
     } catch (error) {
         console.error("Error parsing invoice header from XML:", error);

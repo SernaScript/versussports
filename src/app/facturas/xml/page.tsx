@@ -1,14 +1,28 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { AlertCircle, Loader2, FileCode, Package, ArrowLeft } from "lucide-react";
+import {
+    AlertCircle,
+    Loader2,
+    FileCode,
+    Package,
+    ArrowLeft,
+    Calendar,
+    Printer,
+    Download,
+    ChevronRight,
+    Building2,
+    Hash
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { parseInvoiceItems, formatXML, parseInvoiceHeader, InvoiceItem, InvoiceHeader } from "@/app/facturas/utils/xml-parser";
+import { cn } from "@/lib/utils";
 
-export default function XMLViewerPage() {
+function XMLViewerContent() {
     const searchParams = useSearchParams();
     const router = useRouter();
     const xmlUrl = searchParams.get("url");
@@ -18,11 +32,10 @@ export default function XMLViewerPage() {
     const [xmlContent, setXmlContent] = useState<string | null>(null);
     const [items, setItems] = useState<InvoiceItem[]>([]);
     const [invoiceHeader, setInvoiceHeader] = useState<InvoiceHeader | null>(null);
-    const [activeTab, setActiveTab] = useState<"xml" | "items">("items");
+    const [activeTab, setActiveTab] = useState<"items" | "xml">("items");
 
     useEffect(() => {
         if (xmlUrl) {
-            console.log("🔍 XMLViewerPage - URL del XML:", xmlUrl);
             setError(null);
             setLoading(true);
             setXmlContent(null);
@@ -62,26 +75,55 @@ export default function XMLViewerPage() {
         }).format(value);
     };
 
-    // Generar el nombre del archivo basado en prefijo+folio o el ID del archivo
-    const fileName = invoiceHeader && invoiceHeader.prefix && invoiceHeader.folio
-        ? `Factura ${invoiceHeader.prefix}${invoiceHeader.folio}`
-        : xmlUrl
-            ? `Factura XML ${xmlUrl.split("/").pop()?.replace(".xml", "") || ""}`
-            : "Factura XML";
+    const formatDate = (dateString?: string) => {
+        if (!dateString) return "N/A";
+        try {
+            const date = new Date(dateString);
+            if (isNaN(date.getTime())) return dateString;
 
-    if (!xmlUrl) {
+            return new Intl.DateTimeFormat("es-CO", {
+                year: "numeric",
+                month: "long",
+                day: "numeric",
+            }).format(date);
+        } catch {
+            return dateString;
+        }
+    };
+
+    if (loading) {
         return (
-            <div className="container mx-auto p-6">
-                <Card>
-                    <CardContent className="flex flex-col items-center justify-center py-16">
-                        <AlertCircle className="h-12 w-12 text-red-500 mb-4" />
-                        <p className="text-lg font-semibold text-red-600 mb-2">
-                            No se proporcionó una URL de XML
+            <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
+                <div className="relative">
+                    <div className="h-16 w-16 border-4 border-blue-100 rounded-full animate-pulse"></div>
+                    <Loader2 className="h-16 w-16 text-blue-600 animate-spin absolute top-0 left-0" />
+                </div>
+                <div className="text-center space-y-2">
+                    <p className="text-lg font-medium text-slate-800">Analizando Documento XML</p>
+                    <p className="text-sm text-slate-500">Estamos extrayendo la información detallada...</p>
+                </div>
+            </div>
+        );
+    }
+
+    if (error || !xmlUrl) {
+        return (
+            <div className="p-6 lg:p-12 flex items-center justify-center min-h-[60vh]">
+                <Card className="max-w-md w-full border-none shadow-2xl">
+                    <CardContent className="pt-12 pb-10 flex flex-col items-center text-center">
+                        <div className="h-20 w-20 bg-red-50 rounded-full flex items-center justify-center mb-6">
+                            <AlertCircle className="h-10 w-10 text-red-500" />
+                        </div>
+                        <h2 className="text-2xl font-bold text-slate-900 mb-2">¡Ups! Algo salió mal</h2>
+                        <p className="text-slate-500 mb-8 px-4">
+                            {error || "No se ha proporcionado un documento válido para visualizar."}
                         </p>
-                        <Button onClick={() => router.push("/facturas")} className="mt-4">
-                            <ArrowLeft className="mr-2 h-4 w-4" />
-                            Volver a Facturas
-                        </Button>
+                        <div className="space-y-3 w-full px-8">
+                            <Button onClick={() => router.push("/facturas")} className="w-full bg-slate-900 hover:bg-slate-800">
+                                <ArrowLeft className="mr-2 h-4 w-4" />
+                                Volver a Facturas
+                            </Button>
+                        </div>
                     </CardContent>
                 </Card>
             </div>
@@ -89,307 +131,242 @@ export default function XMLViewerPage() {
     }
 
     return (
-        <div className="container mx-auto p-6 space-y-4">
-            <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => router.push("/facturas")}
-                        title="Volver a Facturas"
+        <div className="flex flex-col h-full bg-[#f1f5f9]">
+            {/* STICKY TOP CONTAINER: Provider info + Tabs */}
+            <div className="sticky top-[69px] z-40 bg-[#f1f5f9] pt-8 pb-4 border-b border-transparent">
+                <div className="flex flex-col gap-2 mb-6">
+                    <Badge variant="outline" className="w-fit bg-white/80 text-slate-600 border-slate-300 text-xs py-0.5 px-3 font-bold mb-2 shadow-sm">
+                        PROVEEDOR EMISOR
+                    </Badge>
+                    <h1 className="text-4xl lg:text-5xl font-black text-slate-900 uppercase tracking-tight leading-tight">
+                        {invoiceHeader?.issuerName || "N/A"}
+                    </h1>
+                    <div className="flex flex-wrap items-center gap-x-10 gap-y-2 mt-2">
+                        <h2 className="text-2xl lg:text-3xl font-black text-blue-600 uppercase tracking-tighter flex items-center gap-3">
+                            <span className="text-slate-900 font-bold text-xl uppercase tracking-normal">Factura No.</span>
+                            {invoiceHeader?.prefix}{invoiceHeader?.folio}
+                        </h2>
+                        <h3 className="text-lg lg:text-xl font-bold text-slate-500 flex items-center gap-2">
+                            <Calendar className="h-5 w-5 text-slate-400" />
+                            {invoiceHeader?.issueDate ? formatDate(invoiceHeader.issueDate) : "---"}
+                        </h3>
+                    </div>
+                </div>
+
+                {/* Tabs also sticky as part of the header area */}
+                <div className="flex items-center gap-10 border-b border-slate-200 bg-[#f1f5f9]">
+                    <button
+                        onClick={() => setActiveTab("items")}
+                        className={cn(
+                            "pb-4 text-xs font-black transition-all relative uppercase tracking-[0.2em]",
+                            activeTab === "items" ? "text-blue-600 after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-blue-600" : "text-slate-400 hover:text-slate-600"
+                        )}
                     >
-                        <ArrowLeft className="h-4 w-4" />
-                    </Button>
-                    <h1 className="text-2xl font-bold">{fileName}</h1>
+                        Detalle de Facturación
+                    </button>
+                    <button
+                        onClick={() => setActiveTab("xml")}
+                        className={cn(
+                            "pb-4 text-xs font-black transition-all relative uppercase tracking-[0.2em]",
+                            activeTab === "xml" ? "text-blue-600 after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-blue-600" : "text-slate-400 hover:text-slate-600"
+                        )}
+                    >
+                        Código Fuente XML
+                    </button>
                 </div>
             </div>
 
-            {/* Datos clave de la factura */}
-            {invoiceHeader && (
-                <>
-                    <Card>
-                        <CardContent className="pt-6">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div className="space-y-1">
-                                    <p className="text-sm font-medium text-muted-foreground">Proveedor</p>
-                                    <p className="text-base font-semibold">{invoiceHeader.issuerName || "N/A"}</p>
-                                </div>
-                                <div className="space-y-1">
-                                    <p className="text-sm font-medium text-muted-foreground">Factura</p>
-                                    <p className="text-base font-semibold">
-                                        {invoiceHeader.prefix && invoiceHeader.folio
-                                            ? `${invoiceHeader.prefix}${invoiceHeader.folio}`
-                                            : invoiceHeader.prefix || invoiceHeader.folio || "N/A"}
-                                    </p>
-                                </div>
+            {/* MAIN CONTENT AREA */}
+            <div className="mt-8">
+                <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 items-start relative">
 
-                            </div>
-                        </CardContent>
-                    </Card>
+                    {/* Left Column: Stat Cards - Stays sticky while table scrolls */}
+                    <div className="lg:col-span-1 space-y-4 sticky top-[360px]">
+                        {/* Subtotal Card */}
+                        <Card className="border-none shadow-sm bg-white overflow-hidden">
+                            <CardContent className="p-6">
+                                <p className="text-xs font-black text-slate-500 uppercase tracking-[0.1em] mb-1">Subtotal</p>
+                                <h3 className="text-xl font-extrabold text-slate-800">
+                                    {formatCurrency(invoiceHeader?.legalMonetaryTotal?.lineExtensionAmount || 0)}
+                                </h3>
+                            </CardContent>
+                        </Card>
 
-                    {/* Resumen de Impuestos */}
-                    {invoiceHeader.taxSubtotals.length > 0 && (
-                        <Card>
-                            <CardHeader>
-                                <CardTitle>Resumen de Impuestos</CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                                <div className="space-y-4">
-                                    <div className="flex items-center justify-between">
-                                        <p className="text-sm font-medium text-muted-foreground">Total Impuestos</p>
-                                        <p className="text-lg font-bold">{formatCurrency(invoiceHeader.totalTaxAmount)}</p>
-                                    </div>
-                                    <div className="border rounded-lg overflow-hidden">
+                        {/* Taxes Detailed Card */}
+                        <Card className="border-none shadow-sm bg-white overflow-hidden">
+                            <CardContent className="p-6">
+                                <p className="text-xs font-black text-slate-500 uppercase tracking-[0.1em] mb-3">Impuestos Totales</p>
+                                <h3 className="text-xl font-extrabold text-slate-800 mb-4 pb-3 border-b border-slate-100">
+                                    {formatCurrency(invoiceHeader?.totalTaxAmount || 0)}
+                                </h3>
+                                <div className="space-y-4 max-h-[300px] overflow-y-auto custom-scrollbar pr-2">
+                                    {invoiceHeader?.taxSubtotals.map((tax, index) => (
+                                        <div key={index} className="space-y-1.5 bg-slate-50/80 p-3 rounded-xl border border-slate-100">
+                                            <div className="flex justify-between items-center text-xs font-black text-blue-600 uppercase tracking-tighter">
+                                                <span>{tax.taxSchemeName}</span>
+                                                <Badge variant="secondary" className="bg-blue-50 text-blue-700 text-[10px] font-black border-none">{tax.percent}%</Badge>
+                                            </div>
+                                            <div className="flex justify-between text-[11px] text-slate-500 font-bold uppercase tracking-tighter">
+                                                <span>Base:</span>
+                                                <span>{formatCurrency(tax.taxableAmount)}</span>
+                                            </div>
+                                            <div className="flex justify-between text-xs font-black text-slate-800 pt-1 border-t border-slate-200/50 mt-1">
+                                                <span>Valor:</span>
+                                                <span>{formatCurrency(tax.taxAmount)}</span>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </CardContent>
+                        </Card>
+
+                        {/* Total Pay Card */}
+                        <Card className="border-none shadow-sm bg-blue-600 text-white overflow-hidden shadow-lg shadow-blue-200">
+                            <CardContent className="p-6">
+                                <p className="text-xs font-black text-blue-100 uppercase tracking-[0.1em] mb-1">Total a Pagar</p>
+                                <h3 className="text-3xl font-black">
+                                    {formatCurrency(invoiceHeader?.legalMonetaryTotal?.payableAmount || 0)}
+                                </h3>
+                            </CardContent>
+                        </Card>
+                    </div>
+
+                    {/* Right Column: Dynamic Content - Scrolls below sticky tabs */}
+                    <div className="lg:col-span-3 pb-20">
+                        {activeTab === "items" ? (
+                            <Card className="border-none shadow-sm bg-white overflow-hidden">
+                                <CardContent className="p-0">
+                                    <div className="overflow-x-auto">
                                         <Table>
                                             <TableHeader>
-                                                <TableRow className="bg-slate-50/50">
-                                                    <TableHead className="font-semibold">Tipo de Impuesto</TableHead>
-                                                    <TableHead className="font-semibold text-right">Base Imponible</TableHead>
-                                                    <TableHead className="font-semibold text-right">Porcentaje</TableHead>
-                                                    <TableHead className="font-semibold text-right">Monto</TableHead>
+                                                <TableRow className="border-none bg-slate-50/80">
+                                                    <TableHead className="text-xs font-black uppercase py-5 pl-6 text-slate-900 sticky top-0 bg-slate-50 z-20 backdrop-blur-sm border-b border-slate-100">Concepto / Descripción</TableHead>
+                                                    <TableHead className="text-xs font-black uppercase text-right py-5 text-slate-900 sticky top-0 bg-slate-50 z-20 backdrop-blur-sm border-b border-slate-100">Cant.</TableHead>
+                                                    <TableHead className="text-xs font-black uppercase text-right py-5 text-slate-900 sticky top-0 bg-slate-50 z-20 backdrop-blur-sm border-b border-slate-100">P. Unitario</TableHead>
+                                                    <TableHead className="text-xs font-black uppercase text-right py-5 pr-6 text-slate-900 sticky top-0 bg-slate-50 z-20 backdrop-blur-sm border-b border-slate-100">Total</TableHead>
                                                 </TableRow>
                                             </TableHeader>
                                             <TableBody>
-                                                {invoiceHeader.taxSubtotals.map((tax, index) => (
-                                                    <TableRow key={index}>
-                                                        <TableCell className="font-medium">
-                                                            {tax.taxSchemeName} ({tax.taxSchemeId})
-                                                        </TableCell>
-                                                        <TableCell className="text-right">
-                                                            {formatCurrency(tax.taxableAmount)}
-                                                        </TableCell>
-                                                        <TableCell className="text-right">
-                                                            {tax.percent.toFixed(2)}%
-                                                        </TableCell>
-                                                        <TableCell className="text-right font-semibold">
-                                                            {formatCurrency(tax.taxAmount)}
+                                                {items.length > 0 ? (
+                                                    items.map((item, index) => (
+                                                        <TableRow key={index} className="group hover:bg-slate-50/50 border-slate-100">
+                                                            <TableCell className="py-7 pl-6">
+                                                                <div className="flex flex-col gap-1.5">
+                                                                    <span className="text-sm font-black text-slate-900 uppercase leading-snug tracking-tight">{item.description}</span>
+                                                                    <div className="flex items-center gap-3">
+                                                                        <span className="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md font-mono font-bold tracking-tighter uppercase border border-slate-200">Ref: {item.lineId}</span>
+                                                                        {item.brandName && <span className="text-xs text-slate-400 font-bold uppercase tracking-tight">Marca: {item.brandName}</span>}
+                                                                    </div>
+                                                                </div>
+                                                            </TableCell>
+                                                            <TableCell className="text-right text-sm text-slate-700 font-black">
+                                                                {item.quantity.toLocaleString("es-CO")}
+                                                                <span className="text-xs text-slate-400 ml-1.5 font-bold uppercase">{item.unitCode || "un"}</span>
+                                                            </TableCell>
+                                                            <TableCell className="text-right text-sm text-slate-600 font-bold">
+                                                                {item.priceAmount !== undefined ? formatCurrency(item.priceAmount) : "-"}
+                                                            </TableCell>
+                                                            <TableCell className="text-right py-7 pr-6">
+                                                                <span className="text-lg font-black text-slate-900 tracking-tighter">{formatCurrency(item.lineExtensionAmount)}</span>
+                                                            </TableCell>
+                                                        </TableRow>
+                                                    ))
+                                                ) : (
+                                                    <TableRow>
+                                                        <TableCell colSpan={4} className="h-60 text-center">
+                                                            <p className="text-slate-400 text-sm font-black uppercase tracking-[0.2em] opacity-40">Sin líneas de detalle registradas</p>
                                                         </TableCell>
                                                     </TableRow>
-                                                ))}
+                                                )}
                                             </TableBody>
                                         </Table>
                                     </div>
-                                </div>
-                            </CardContent>
-                        </Card>
-                    )}
-
-                    {/* Total Monetario Legal */}
-                    {invoiceHeader.legalMonetaryTotal && (
-                        <Card>
-                            <CardHeader>
-                                <CardTitle>Total Monetario</CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                                <div className="space-y-3">
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        <div className="flex items-center justify-between border-b pb-2">
-                                            <p className="text-sm font-medium text-muted-foreground">Total Líneas (Sin Impuestos)</p>
-                                            <p className="text-base font-semibold">
-                                                {formatCurrency(invoiceHeader.legalMonetaryTotal.lineExtensionAmount)}
-                                            </p>
-                                        </div>
-                                        <div className="flex items-center justify-between border-b pb-2">
-                                            <p className="text-sm font-medium text-muted-foreground">Monto Sin Impuestos</p>
-                                            <p className="text-base font-semibold">
-                                                {formatCurrency(invoiceHeader.legalMonetaryTotal.taxExclusiveAmount)}
-                                            </p>
-                                        </div>
-                                        <div className="flex items-center justify-between border-b pb-2">
-                                            <p className="text-sm font-medium text-muted-foreground">Monto Con Impuestos</p>
-                                            <p className="text-base font-semibold">
-                                                {formatCurrency(invoiceHeader.legalMonetaryTotal.taxInclusiveAmount)}
-                                            </p>
-                                        </div>
-                                        <div className="flex items-center justify-between border-b pb-2">
-                                            <p className="text-sm font-medium text-muted-foreground">Total Descuentos</p>
-                                            <p className="text-base font-semibold">
-                                                {formatCurrency(invoiceHeader.legalMonetaryTotal.allowanceTotalAmount)}
-                                            </p>
-                                        </div>
-                                        <div className="flex items-center justify-between border-b pb-2">
-                                            <p className="text-sm font-medium text-muted-foreground">Total Cargos</p>
-                                            <p className="text-base font-semibold">
-                                                {formatCurrency(invoiceHeader.legalMonetaryTotal.chargeTotalAmount)}
-                                            </p>
-                                        </div>
-                                        <div className="flex items-center justify-between border-b pb-2">
-                                            <p className="text-sm font-medium text-muted-foreground">Monto Prepagado</p>
-                                            <p className="text-base font-semibold">
-                                                {formatCurrency(invoiceHeader.legalMonetaryTotal.prepaidAmount)}
-                                            </p>
-                                        </div>
-                                    </div>
-                                    <div className="flex items-center justify-between pt-4 border-t-2 border-primary/20">
-                                        <p className="text-lg font-bold">Monto a Pagar</p>
-                                        <p className="text-2xl font-bold text-primary">
-                                            {formatCurrency(invoiceHeader.legalMonetaryTotal.payableAmount)}
-                                        </p>
-                                    </div>
-                                </div>
-                            </CardContent>
-                        </Card>
-                    )}
-                </>
-            )}
-
-            <Card>
-                <CardHeader>
-                    <div className="flex border-b">
-                        <Button
-                            variant="ghost"
-                            onClick={() => setActiveTab("items")}
-                            className={`rounded-none border-b-2 ${activeTab === "items"
-                                ? "border-primary text-primary"
-                                : "border-transparent"
-                                }`}
-                        >
-                            <Package className="mr-2 h-4 w-4" />
-                            Items ({items.length})
-                        </Button>
-                        <Button
-                            variant="ghost"
-                            onClick={() => setActiveTab("xml")}
-                            className={`rounded-none border-b-2 ${activeTab === "xml"
-                                ? "border-primary text-primary"
-                                : "border-transparent"
-                                }`}
-                        >
-                            <FileCode className="mr-2 h-4 w-4" />
-                            XML Completo
-                        </Button>
-                    </div>
-                </CardHeader>
-                <CardContent>
-                    {loading ? (
-                        <div className="flex flex-col items-center justify-center py-16 gap-4">
-                            <Loader2 className="h-12 w-12 text-primary animate-spin" />
-                            <p className="text-sm text-muted-foreground">Cargando XML...</p>
-                        </div>
-                    ) : error ? (
-                        <div className="flex flex-col items-center justify-center py-16 gap-4">
-                            <AlertCircle className="h-12 w-12 text-red-500" />
-                            <div className="text-center">
-                                <p className="text-lg font-semibold text-red-600">Error al cargar el XML</p>
-                                <p className="text-sm text-muted-foreground mt-2">{error}</p>
-                                <p className="text-xs text-muted-foreground mt-4">URL: {xmlUrl}</p>
-                            </div>
-                            <Button onClick={() => router.push("/facturas")} className="mt-4">
-                                <ArrowLeft className="mr-2 h-4 w-4" />
-                                Volver a Facturas
-                            </Button>
-                        </div>
-                    ) : activeTab === "items" ? (
-                        <div className="space-y-4">
-                            <div className="flex items-center justify-between">
-                                <h3 className="text-lg font-semibold">Items de la Factura</h3>
-                                <span className="text-sm text-muted-foreground">
-                                    {items.length} item{items.length !== 1 ? "s" : ""}
-                                </span>
-                            </div>
-                            {items.length > 0 ? (
-                                <div className="border rounded-lg overflow-hidden bg-white">
-                                    <Table>
-                                        <TableHeader>
-                                            <TableRow className="bg-slate-50/50">
-                                                <TableHead className="font-semibold">ID</TableHead>
-                                                <TableHead className="font-semibold">Descripción</TableHead>
-                                                <TableHead className="font-semibold text-right">Cantidad</TableHead>
-                                                <TableHead className="font-semibold text-right">Precio Unit.</TableHead>
-                                                <TableHead className="font-semibold text-right">Total</TableHead>
-                                                <TableHead className="font-semibold">Código</TableHead>
-                                            </TableRow>
-                                        </TableHeader>
-                                        <TableBody>
-                                            {items.map((item, index) => (
-                                                <TableRow key={index}>
-                                                    <TableCell className="font-mono text-sm">
-                                                        {item.lineId}
-                                                    </TableCell>
-                                                    <TableCell className="max-w-md">
-                                                        <div className="space-y-1">
-                                                            <div className="font-medium">{item.description}</div>
-                                                            {item.brandName && (
-                                                                <div className="text-xs text-muted-foreground">
-                                                                    Marca: {item.brandName}
-                                                                </div>
-                                                            )}
-                                                            {item.modelName && (
-                                                                <div className="text-xs text-muted-foreground">
-                                                                    Modelo: {item.modelName}
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    </TableCell>
-                                                    <TableCell className="text-right">
-                                                        <div className="space-y-1">
-                                                            <div>{item.quantity.toLocaleString("es-CO")}</div>
-                                                            {item.unitCode && (
-                                                                <div className="text-xs text-muted-foreground">
-                                                                    {item.unitCode}
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    </TableCell>
-                                                    <TableCell className="text-right">
-                                                        {item.priceAmount !== undefined
-                                                            ? formatCurrency(item.priceAmount)
-                                                            : "-"}
-                                                    </TableCell>
-                                                    <TableCell className="text-right font-semibold">
-                                                        {formatCurrency(item.lineExtensionAmount)}
-                                                    </TableCell>
-                                                    <TableCell>
-                                                        <div className="space-y-1">
-                                                            {item.sellerItemId && (
-                                                                <div className="text-xs font-mono">
-                                                                    Vendedor: {item.sellerItemId}
-                                                                </div>
-                                                            )}
-                                                            {item.standardItemId && (
-                                                                <div className="text-xs font-mono text-muted-foreground">
-                                                                    Estándar: {item.standardItemId}
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    </TableCell>
-                                                </TableRow>
-                                            ))}
-                                        </TableBody>
-                                    </Table>
-                                </div>
-                            ) : (
-                                <div className="flex flex-col items-center justify-center py-12 text-center">
-                                    <Package className="h-10 w-10 text-muted-foreground opacity-50 mb-4" />
-                                    <p className="text-sm text-muted-foreground">
-                                        No se encontraron items en el XML
-                                    </p>
-                                </div>
-                            )}
-                        </div>
-                    ) : (
-                        <div className="space-y-4">
-                            <div className="flex items-center justify-between">
-                                <h3 className="text-lg font-semibold">XML Completo</h3>
-                            </div>
-                            {xmlContent ? (
-                                <div className="border rounded-lg overflow-hidden bg-white">
-                                    <pre className="p-4 overflow-auto text-xs font-mono bg-slate-900 text-slate-100 max-h-[calc(100vh-300px)]">
-                                        <code>{formatXML(xmlContent)}</code>
+                                </CardContent>
+                            </Card>
+                        ) : (
+                            <div className="p-0 bg-[#0f172a] rounded-3xl overflow-hidden min-h-[700px] border border-white/10 shadow-3xl">
+                                <div className="p-10">
+                                    <pre className="text-[12px] font-mono leading-relaxed text-blue-100/80 overflow-x-auto whitespace-pre custom-scrollbar">
+                                        <code>{xmlContent ? formatXML(xmlContent) : "Sin contenido"}</code>
                                     </pre>
                                 </div>
-                            ) : (
-                                <div className="flex flex-col items-center justify-center py-12 text-center">
-                                    <FileCode className="h-10 w-10 text-muted-foreground opacity-50 mb-4" />
-                                    <p className="text-sm text-muted-foreground">
-                                        No hay contenido XML disponible
-                                    </p>
-                                </div>
-                            )}
-                        </div>
-                    )}
-                </CardContent>
-            </Card>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+export default function XMLViewerPage() {
+    return (
+        <div className="min-h-screen bg-[#f1f5f9] text-slate-900">
+            {/* Action Bar Header - Top Level Sticky (z-50) */}
+            <div className="bg-white/90 backdrop-blur-xl border-b border-slate-200 px-6 py-4 sticky top-0 z-50">
+                <div className="container mx-auto flex items-center justify-between">
+                    <div className="flex items-center gap-6">
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => window.history.back()}
+                            className="bg-slate-100 border border-slate-200 text-slate-800 hover:bg-slate-200 h-10 w-10 rounded-full transition-all"
+                        >
+                            <ArrowLeft className="h-5 w-5" />
+                        </Button>
+                        <span className="text-sm font-black text-slate-500 uppercase tracking-[0.3em]">Auditoría de XML</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                        <Button variant="outline" size="sm" className="hidden sm:flex border-slate-200 text-slate-700 font-black text-[11px] uppercase tracking-widest hover:bg-slate-50">
+                            <Download className="mr-2 h-4 w-4" />
+                            Expediente XML
+                        </Button>
+                        <Button variant="outline" size="sm" className="hidden sm:flex border-slate-200 text-slate-700 font-black text-[11px] uppercase tracking-widest hover:bg-slate-50">
+                            <Printer className="mr-2 h-4 w-4" />
+                            Imprimir PDF
+                        </Button>
+                        <div className="w-px h-6 bg-slate-200 mx-2 hidden sm:block"></div>
+                        <Badge className="bg-slate-900 text-white border-none text-[10px] font-black uppercase tracking-widest py-1.5 px-4 shadow-sm">
+                            DIAN Standard
+                        </Badge>
+                    </div>
+                </div>
+            </div>
+
+            <div className="container mx-auto px-6 lg:px-12">
+                <Suspense fallback={
+                    <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
+                        <div className="h-12 w-12 border-4 border-slate-200 border-t-blue-600 rounded-full animate-spin"></div>
+                    </div>
+                }>
+                    <XMLViewerContent />
+                </Suspense>
+            </div>
+
+            <style jsx global>{`
+                @import url('https://fonts.googleapis.com/css2?family=Public+Sans:wght@300;400;500;600;700;800;900&display=swap');
+                
+                body {
+                    font-family: 'Public Sans', sans-serif;
+                    overflow-x: hidden;
+                    background-color: #f1f5f9;
+                }
+
+                .custom-scrollbar::-webkit-scrollbar {
+                    width: 7px;
+                    height: 7px;
+                }
+                .custom-scrollbar::-webkit-scrollbar-track {
+                    background: transparent;
+                }
+                .custom-scrollbar::-webkit-scrollbar-thumb {
+                    background: rgba(0, 0, 0, 0.1);
+                    border-radius: 20px;
+                }
+                .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+                    background: rgba(0, 0, 0, 0.2);
+                }
+            `}</style>
         </div>
     );
 }
