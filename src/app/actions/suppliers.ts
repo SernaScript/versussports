@@ -4,6 +4,38 @@ import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { getSiigoAuthToken } from "./siigo";
 
+// Tipos para la API de Siigo Customers/Suppliers
+interface SiigoCity {
+    city_name: string;
+}
+
+interface SiigoAddress {
+    address: string;
+    city?: SiigoCity;
+}
+
+type SiigoAddressField = string | SiigoAddress | null | undefined;
+type SiigoCityField = string | SiigoCity | null | undefined;
+type SiigoNameField = string | string[];
+
+interface SiigoCustomer {
+    id: number | string; // Puede ser UUID o número
+    identification: string;
+    name: SiigoNameField;
+    email?: string | null;
+    phone?: string | null;
+    address?: SiigoAddressField;
+    city?: SiigoCityField;
+    active?: boolean;
+    type?: string;
+}
+
+interface SiigoCustomersResponse {
+    results?: SiigoCustomer[];
+}
+
+type SiigoCustomersApiResponse = SiigoCustomer[] | SiigoCustomersResponse;
+
 export async function getSuppliers(query?: string) {
     try {
         const where = query ? {
@@ -29,52 +61,74 @@ export async function syncSiigoSuppliers() {
         const auth = await getSiigoAuthToken();
         if (!auth) return { success: false, error: "No hay credenciales de Siigo o fallo autenticación" };
 
-        // Fetch suppliers from Siigo
-        const response = await fetch("https://api.siigo.com/v1/customers?type=Supplier", {
-            method: "GET",
-            headers: {
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${auth.token}`,
-                "Partner-Id": auth.partnerId
-            },
-            cache: 'no-store'
-        });
+        // Fetch all suppliers from Siigo with pagination
+        let allSuppliers: SiigoCustomer[] = [];
+        let page = 1;
+        let hasMore = true;
 
-        if (!response.ok) {
-            const errorText = await response.text();
-            console.error("Siigo API Error:", errorText);
-            return { success: false, error: "Error fetching suppliers from Siigo API" };
+        while (hasMore) {
+            const response = await fetch(`https://api.siigo.com/v1/customers?type=Supplier&page=${page}`, {
+                method: "GET",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${auth.token}`,
+                    "Partner-Id": auth.partnerId
+                },
+                cache: 'no-store'
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error("Siigo API Error:", errorText);
+                return { success: false, error: "Error fetching suppliers from Siigo API" };
+            }
+
+            const siigoSuppliers: SiigoCustomersApiResponse = await response.json();
+            const suppliers: SiigoCustomer[] = Array.isArray(siigoSuppliers) 
+                ? siigoSuppliers 
+                : siigoSuppliers.results || [];
+            
+            // If no suppliers returned or empty array, stop pagination
+            if (!suppliers || suppliers.length === 0) {
+                hasMore = false;
+            } else {
+                allSuppliers = allSuppliers.concat(suppliers);
+                // If we got less than 25 results, we're on the last page
+                hasMore = suppliers.length >= 25;
+                page++;
+            }
         }
-
-        const siigoSuppliers = await response.json();
-        const suppliers = Array.isArray(siigoSuppliers) ? siigoSuppliers : siigoSuppliers.results || [];
 
         // Upsert into DB
         let count = 0;
-        for (const supplier of suppliers) {
-            // Handle name as string or array
-            const name = Array.isArray(supplier.name) 
+        for (const supplier of allSuppliers) {
+            // Handle name as string or array and convert to uppercase
+            const name = (Array.isArray(supplier.name) 
                 ? supplier.name.join(" ") 
-                : (supplier.name || "");
+                : (supplier.name || "")).toUpperCase();
             
             // Handle address - can be string or object
-            let addressStr = null;
+            let addressStr: string | null = null;
             if (supplier.address) {
                 if (typeof supplier.address === 'string') {
                     addressStr = supplier.address;
-                } else if (supplier.address.address) {
+                } else if (typeof supplier.address === 'object' && supplier.address.address) {
                     addressStr = supplier.address.address;
                 }
             }
             
             // Handle city - can be string or object
-            let cityStr = null;
+            let cityStr: string | null = null;
             if (supplier.city) {
                 if (typeof supplier.city === 'string') {
                     cityStr = supplier.city;
-                } else if (supplier.address?.city?.city_name) {
-                    cityStr = supplier.address.city.city_name;
+                } else if (typeof supplier.city === 'object' && supplier.city.city_name) {
+                    cityStr = supplier.city.city_name;
                 }
+            }
+            // Also check address.city as fallback
+            if (!cityStr && supplier.address && typeof supplier.address === 'object' && supplier.address.city?.city_name) {
+                cityStr = supplier.address.city.city_name;
             }
             
             // Convert siigoId to string (can be number or UUID)
