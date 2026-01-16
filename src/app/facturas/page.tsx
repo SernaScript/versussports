@@ -20,7 +20,10 @@ import {
     Trash2,
     DollarSign,
     ArrowUpDown,
-    DownloadCloud
+    DownloadCloud,
+    FileStack,
+    Timer,
+    BadgeCheck
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -40,6 +43,8 @@ import {
     TabsList,
     TabsTrigger
 } from "@/components/ui/tabs";
+import { cn } from "@/lib/utils";
+
 
 type ItemsPerPage = 20 | 40 | 60;
 
@@ -191,9 +196,14 @@ export default function FacturasPage() {
         if (activeTab !== "all") {
             result = result.filter((invoice) => {
                 const status = (invoice.status || "").toLowerCase();
-                if (activeTab === "por-pagar") return status === "por pagar";
-                if (activeTab === "por-causar") return status === "por causar";
-                // Add more mappings as needed
+                const isAccounted = Boolean(invoice.isAccounted);
+
+                if (activeTab === "por-causar") {
+                    return status === "por causar" && !isAccounted;
+                }
+                if (activeTab === "causados") {
+                    return isAccounted || status === "causado";
+                }
                 return true;
             });
         }
@@ -337,46 +347,62 @@ export default function FacturasPage() {
                 </div>
 
                 {/* Tabs / States */}
-                <Tabs defaultValue="all" className="w-full" onValueChange={setActiveTab}>
-                    <TabsList className="bg-transparent border-b rounded-none w-full justify-start h-auto p-0 gap-6">
-                        <TabsTrigger
-                            value="all"
-                            className="rounded-none border-b-2 border-transparent data-[state=active]:border-blue-600 data-[state=active]:bg-transparent data-[state=active]:shadow-none px-0 pb-3 text-slate-500 hover:text-slate-700"
-                        >
-                            Ver todo
-                        </TabsTrigger>
-                        <TabsTrigger
-                            value="por-aprobar"
-                            className="rounded-none border-b-2 border-transparent data-[state=active]:border-blue-600 data-[state=active]:bg-transparent data-[state=active]:shadow-none px-0 pb-3 text-slate-500 hover:text-slate-700"
-                        >
-                            Por aprobar
-                        </TabsTrigger>
-                        <TabsTrigger
-                            value="por-pagar"
-                            className="rounded-none border-b-2 border-transparent data-[state=active]:border-blue-600 data-[state=active]:bg-transparent data-[state=active]:shadow-none px-0 pb-3 text-slate-500 hover:text-slate-700"
-                        >
-                            Por pagar
-                        </TabsTrigger>
-                        <TabsTrigger
-                            value="por-causar"
-                            className="rounded-none border-b-2 border-transparent data-[state=active]:border-blue-600 data-[state=active]:bg-transparent data-[state=active]:shadow-none px-0 pb-3 text-slate-500 hover:text-slate-700"
-                        >
-                            Por causar
-                        </TabsTrigger>
-                        <TabsTrigger
-                            value="causados"
-                            className="rounded-none border-b-2 border-transparent data-[state=active]:border-blue-600 data-[state=active]:bg-transparent data-[state=active]:shadow-none px-0 pb-3 text-slate-500 hover:text-slate-700"
-                        >
-                            Causados
-                        </TabsTrigger>
-                        <TabsTrigger
-                            value="eventos-dian"
-                            className="rounded-none border-b-2 border-transparent data-[state=active]:border-blue-600 data-[state=active]:bg-transparent data-[state=active]:shadow-none px-0 pb-3 text-slate-500 hover:text-slate-700"
-                        >
-                            Eventos DIAN
-                        </TabsTrigger>
-                    </TabsList>
-                </Tabs>
+                {/* Premium Segmented Control (Pill Style) */}
+                <div className="flex items-center justify-between pb-2">
+                    <Tabs defaultValue="all" className="w-fit" onValueChange={setActiveTab}>
+                        <TabsList className="bg-slate-200/50 p-1 h-12 rounded-2xl gap-1 border border-slate-200/50">
+                            {[
+                                { id: "all", label: "Ver todo", icon: <FileStack className="h-4 w-4" /> },
+                                { id: "por-causar", label: "Por causar", icon: <Timer className="h-4 w-4 text-amber-500" /> },
+                                { id: "causados", label: "Causados", icon: <BadgeCheck className="h-4 w-4 text-emerald-500" /> },
+                            ].map((tab) => (
+                                <TabsTrigger
+                                    key={tab.id}
+                                    value={tab.id}
+                                    className={cn(
+                                        "rounded-xl px-6 h-full text-xs font-black transition-all flex items-center gap-2 group tracking-widest uppercase",
+                                        "data-[state=active]:bg-white data-[state=active]:text-blue-600 data-[state=active]:shadow-[0_2px_10px_rgba(0,0,0,0.06)]",
+                                        "text-slate-500 hover:text-slate-700"
+                                    )}
+                                >
+                                    <span className="transition-transform group-data-[state=active]:scale-110">
+                                        {tab.icon}
+                                    </span>
+                                    {tab.label}
+                                    {invoices.length > 0 && (
+                                        <span className={cn(
+                                            "ml-1 flex items-center justify-center min-w-[20px] h-[20px] px-1.5 rounded-full text-[10px] font-black transition-colors",
+                                            "group-data-[state=active]:bg-blue-50 group-data-[state=active]:text-blue-600 bg-slate-200 text-slate-500"
+                                        )}>
+                                            {tab.id === "all"
+                                                ? invoices.filter(inv => {
+                                                    const group = inv.group?.toLowerCase() || "";
+                                                    return group.includes("recibido") || group.includes("recibida") || Boolean(inv.isDownloaded) || Boolean(inv.isAccounted);
+                                                }).length
+                                                : invoices.filter(inv => {
+                                                    const status = (inv.status || "").toLowerCase();
+                                                    if (tab.id === "por-causar") return status === "por causar" && !inv.isAccounted;
+                                                    if (tab.id === "causados") return inv.isAccounted || status === "causado";
+                                                    return false;
+                                                }).length}
+                                        </span>
+                                    )}
+                                </TabsTrigger>
+                            ))}
+                        </TabsList>
+                    </Tabs>
+
+                    <div className="hidden lg:flex items-center gap-3">
+                        <div className="flex -space-x-2">
+                            {[1, 2, 3].map((i) => (
+                                <div key={i} className="h-8 w-8 rounded-full border-2 border-white bg-slate-100 flex items-center justify-center text-[10px] font-black text-slate-400">
+                                    U{i}
+                                </div>
+                            ))}
+                        </div>
+                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Colaboradores</span>
+                    </div>
+                </div>
 
                 {/* Filters & Search */}
                 <div className="flex items-center justify-between gap-4">
