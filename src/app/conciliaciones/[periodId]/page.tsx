@@ -941,7 +941,7 @@ function AccountSelector({ value, onSelect }: { value: string, onSelect: (code: 
                 >
                     {selectedAccount
                         ? `${selectedAccount.code} - ${selectedAccount.name}`
-                        : "Seleccionar cuenta..."}
+                        : value || "Seleccionar cuenta..."}
                     <ListFilter className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                 </Button>
             </PopoverTrigger>

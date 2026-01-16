@@ -1,7 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { revalidatePath } from "next/cache";
+// Note: we intentionally avoid revalidatePath here to prevent UI refresh after saving.
 
 export async function getProviderAccountingConfigs(params?: {
   query?: string;
@@ -13,32 +13,90 @@ export async function getProviderAccountingConfigs(params?: {
     const pageSize = Math.min(Math.max(Number(params?.pageSize ?? 20), 1), 100);
     const page = Math.max(Number(params?.page ?? 1), 1);
 
-    const where = q
-      ? ({
-        OR: [
-          { providerNit: { contains: q, mode: "insensitive" as const } },
-          { providerName: { contains: q, mode: "insensitive" as const } },
-        ],
-      } as any)
-      : undefined;
+    // We can't rely on Prisma Client having providerName/status fields until it's regenerated.
+    // So for searching by provider name, we use SQL directly against provider_accounting_configs.provider_name.
+    let total = 0;
+    let pageNits: string[] | null = null;
 
-    const [total, configs] = await Promise.all([
-      (prisma as any).providerAccountingConfig.count({ where: where as any }),
-      (prisma as any).providerAccountingConfig.findMany({
-        where: where as any,
-        orderBy: { providerNit: "asc" },
-        take: pageSize,
-        skip: (page - 1) * pageSize,
-        include: {
-          expenseAccount: true,
-          withholdingTax: true,
-        },
-      }),
-    ]);
+    if (q) {
+      try {
+        const like = `%${q}%`;
+        const totalRes = await prisma.$queryRaw<Array<{ total: bigint }>>`
+          SELECT COUNT(*)::bigint AS total
+          FROM "provider_accounting_configs"
+          WHERE "provider_nit" ILIKE ${like}
+             OR "provider_name" ILIKE ${like}
+        `;
+        total = Number((totalRes?.[0]?.total ?? 0) as any);
+
+        const rows = await prisma.$queryRaw<Array<{ provider_nit: string }>>`
+          SELECT "provider_nit"
+          FROM "provider_accounting_configs"
+          WHERE "provider_nit" ILIKE ${like}
+             OR "provider_name" ILIKE ${like}
+          ORDER BY "provider_nit" ASC
+          LIMIT ${pageSize} OFFSET ${(page - 1) * pageSize}
+        `;
+        pageNits = rows.map((r) => r.provider_nit);
+      } catch (e) {
+        // If provider_name column isn't available yet, fallback to NIT-only search via Prisma.
+        pageNits = null;
+      }
+    }
+
+    let configs: any[] = [];
+    if (pageNits) {
+      configs = await (prisma as any).providerAccountingConfig.findMany({
+        where: { providerNit: { in: pageNits } },
+        include: { expenseAccount: true, withholdingTax: true },
+      });
+      // Ensure deterministic ordering by providerNit
+      const byNit = new Map(configs.map((c) => [c.providerNit, c]));
+      configs = pageNits.map((nit) => byNit.get(nit)).filter(Boolean);
+    } else {
+      const where = q
+        ? ({
+          providerNit: { contains: q, mode: "insensitive" as const },
+        } as any)
+        : undefined;
+
+      const [t, list] = await Promise.all([
+        (prisma as any).providerAccountingConfig.count({ where: where as any }),
+        (prisma as any).providerAccountingConfig.findMany({
+          where: where as any,
+          orderBy: { providerNit: "asc" },
+          take: pageSize,
+          skip: (page - 1) * pageSize,
+          include: {
+            expenseAccount: true,
+            withholdingTax: true,
+          },
+        }),
+      ]);
+      total = Number(t);
+      configs = list;
+    }
 
     // Enhance and serialize
     const serialized = await Promise.all((configs as any[]).map(async (c) => {
-      let pName = c.providerName;
+      let pName: string | null = null;
+      let status: string | null = null;
+
+      // Try to read provider_name/status directly from DB (works even if Prisma Client isn't regenerated yet)
+      try {
+        const rows = await prisma.$queryRaw<Array<{ provider_name: string | null; status: string | null }>>`
+          SELECT "provider_name", "status"
+          FROM "provider_accounting_configs"
+          WHERE "provider_nit" = ${c.providerNit}
+          LIMIT 1
+        `;
+        if (rows?.[0]) {
+          pName = rows[0].provider_name;
+          status = rows[0].status;
+        }
+      } catch (e) {
+        // ignore; we'll fallback below
+      }
 
       // Fallback: try to find name in invoices if missing
       if (!pName) {
@@ -61,8 +119,8 @@ export async function getProviderAccountingConfigs(params?: {
       return {
         providerNit: c.providerNit,
         providerName: pName || null,
-        provider_name: pName || null, // Keep for backward compatibility in UI
-        status: c.status,
+        provider_name: pName || null, // UI compatibility
+        status: status || (c.status ?? null),
         expenseAccountId: c.expenseAccountId,
         withholdingTaxId: c.withholdingTaxId,
         expenseAccount: c.expenseAccount,
@@ -120,26 +178,36 @@ export async function upsertProviderAccountingConfig(data: {
     const providerNit = data.providerNit.trim();
     if (!providerNit) return { success: false, error: "providerNit es obligatorio" };
 
-    // Try to find a name if we don't have one in the database already
-    let nameToSave = null;
-    const existing = await (prisma as any).providerAccountingConfig.findUnique({
-      where: { providerNit },
-      select: { providerName: true }
-    });
+    const normalizeUpper = (value: any) => String(value ?? "").trim().toUpperCase();
 
-    if (!existing?.providerName) {
+    // Try to find a name if we don't have one in the database already (read via SQL to avoid Prisma schema mismatch)
+    let existingName: string | null = null;
+    try {
+      const rows = await prisma.$queryRaw<Array<{ provider_name: string | null }>>`
+        SELECT "provider_name"
+        FROM "provider_accounting_configs"
+        WHERE "provider_nit" = ${providerNit}
+        LIMIT 1
+      `;
+      existingName = rows?.[0]?.provider_name ?? null;
+    } catch (e) {
+      existingName = null;
+    }
+
+    let nameToSave: string | null = null;
+    if (!existingName) {
       const inv = await (prisma as any).dianInvoice.findFirst({
         where: { issuerNit: providerNit },
         select: { issuerName: true }
       });
-      if (inv) nameToSave = inv.issuerName;
+      if (inv?.issuerName) nameToSave = normalizeUpper(inv.issuerName);
 
       if (!nameToSave) {
         const supp = await (prisma as any).siigoSupplier.findFirst({
           where: { identification: providerNit },
           select: { name: true }
         });
-        if (supp) nameToSave = supp.name;
+        if (supp?.name) nameToSave = normalizeUpper(supp.name);
       }
     }
 
@@ -148,20 +216,49 @@ export async function upsertProviderAccountingConfig(data: {
       update: {
         expenseAccountId: data.expenseAccountId,
         withholdingTaxId: data.withholdingTaxId,
-        status: "COMPLETED",
-        ...(nameToSave ? { providerName: nameToSave } : {})
       },
       create: {
         providerNit,
-        providerName: nameToSave,
         expenseAccountId: data.expenseAccountId,
         withholdingTaxId: data.withholdingTaxId,
-        status: "COMPLETED",
       },
     });
 
-    revalidatePath("/ajustes");
-    return { success: true };
+    // Persist status/provider_name via SQL (works even if Prisma Client isn't regenerated yet)
+    try {
+      await prisma.$executeRaw`
+        UPDATE "provider_accounting_configs"
+        SET
+          "status" = 'COMPLETED',
+          "provider_name" = CASE
+            WHEN ("provider_name" IS NULL OR BTRIM("provider_name") = '') AND ${nameToSave} IS NOT NULL
+            THEN ${nameToSave}
+            ELSE "provider_name"
+          END,
+          "updated_at" = NOW()
+        WHERE "provider_nit" = ${providerNit}
+      `;
+    } catch (e) {
+      // ignore if columns don't exist yet
+    }
+
+    // Read final values (for optimistic UI updates)
+    let provider_name: string | null = null;
+    let status: string | null = "COMPLETED";
+    try {
+      const rows = await prisma.$queryRaw<Array<{ provider_name: string | null; status: string | null }>>`
+        SELECT "provider_name", "status"
+        FROM "provider_accounting_configs"
+        WHERE "provider_nit" = ${providerNit}
+        LIMIT 1
+      `;
+      provider_name = rows?.[0]?.provider_name ?? provider_name;
+      status = rows?.[0]?.status ?? status;
+    } catch (e) {
+      // ignore
+    }
+
+    return { success: true, data: { provider_nit: providerNit, provider_name, status } };
   } catch (error) {
     console.error("Error upserting provider accounting config:", error);
     return { success: false, error: "Error saving provider config" };

@@ -118,25 +118,30 @@ export async function saveDianInvoices(invoices: ProcessedDianInvoice[]) {
                 await (prisma as any).providerAccountingConfig.createMany({
                     data: uniqueProviderNits.map((nit) => ({
                         providerNit: nit,
-                        providerName: nitToName.get(nit) || null,
-                        status: "PENDING",
                         expenseAccountId: null,
                         withholdingTaxId: null,
                     })),
                     skipDuplicates: true,
                 });
 
-                // Backfill providerName for existing rows that don't have it yet
+                // Backfill provider_name via SQL (works even if Prisma Client isn't regenerated yet)
                 for (const nit of uniqueProviderNits) {
                     const name = nitToName.get(nit);
                     if (!name) continue;
-                    await (prisma as any).providerAccountingConfig.updateMany({
-                        where: {
-                            providerNit: nit,
-                            OR: [{ providerName: null }, { providerName: "" }],
-                        } as any,
-                        data: { providerName: name },
-                    });
+                    try {
+                        await prisma.$executeRaw`
+                          UPDATE "provider_accounting_configs"
+                          SET
+                            "provider_name" = CASE
+                              WHEN "provider_name" IS NULL OR BTRIM("provider_name") = '' THEN ${name}
+                              ELSE "provider_name"
+                            END,
+                            "updated_at" = NOW()
+                          WHERE "provider_nit" = ${nit}
+                        `;
+                    } catch (e) {
+                        // ignore if column doesn't exist yet
+                    }
                 }
             }
         } catch (error) {

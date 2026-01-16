@@ -864,7 +864,7 @@ function SuppliersSection() {
     );
 }
 
-function AccountIdSelector({ value, onSelect }: { value: string | null, onSelect: (val: string | null) => void }) {
+function AccountIdSelector({ value, onSelect, initialAccount }: { value: string | null, onSelect: (val: string | null) => void, initialAccount?: any }) {
     const [open, setOpen] = useState(false);
     const [search, setSearch] = useState("");
     const [accounts, setAccounts] = useState<any[]>([]);
@@ -879,7 +879,15 @@ function AccountIdSelector({ value, onSelect }: { value: string | null, onSelect
         fetch();
     }, [search]);
 
-    const selectedAccount = value ? accounts.find(a => a.id === value) : null;
+    const findSelected = () => {
+        if (!value) return null;
+        const found = accounts.find(a => a.id === value);
+        if (found) return found;
+        if (initialAccount && initialAccount.id === value) return initialAccount;
+        return null;
+    };
+
+    const selectedAccount = findSelected();
 
     return (
         <Popover open={open} onOpenChange={setOpen}>
@@ -944,7 +952,7 @@ function AccountIdSelector({ value, onSelect }: { value: string | null, onSelect
     );
 }
 
-function WithholdingTaxSelector({ value, onSelect }: { value: string | null, onSelect: (val: string | null) => void }) {
+function WithholdingTaxSelector({ value, onSelect, initialTax }: { value: string | null, onSelect: (val: string | null) => void, initialTax?: any }) {
     const [open, setOpen] = useState(false);
     const [search, setSearch] = useState("");
     const [taxes, setTaxes] = useState<any[]>([]);
@@ -959,7 +967,15 @@ function WithholdingTaxSelector({ value, onSelect }: { value: string | null, onS
         fetch();
     }, [search]);
 
-    const selectedTax = value ? taxes.find(t => t.id === value) : null;
+    const findSelected = () => {
+        if (!value) return null;
+        const found = taxes.find(t => t.id === value);
+        if (found) return found;
+        if (initialTax && initialTax.id === value) return initialTax;
+        return null;
+    };
+
+    const selectedTax = findSelected();
     const selectedLabel = selectedTax
         ? `${selectedTax.name}${selectedTax.rate != null ? ` (${selectedTax.rate}%)` : ""} - ${selectedTax.type || ""}`
         : value;
@@ -1078,7 +1094,19 @@ function ProviderConfigsSection() {
         setSavingNit(null);
         if (res.success) {
             toast.success("Configuración guardada");
-            loadConfigs(search, page);
+            const payload = (res as any).data;
+            setConfigs((prev) =>
+                prev.map((c) =>
+                    c.providerNit === providerNit
+                        ? {
+                            ...c,
+                            status: payload?.status ?? "COMPLETED",
+                            providerName: payload?.provider_name ?? c.providerName,
+                            provider_name: payload?.provider_name ?? (c as any).provider_name,
+                        }
+                        : c
+                )
+            );
         } else {
             toast.error(("error" in res && (res as any).error) ? (res as any).error : "Error al guardar configuración");
         }
@@ -1146,12 +1174,14 @@ function ProviderConfigsSection() {
                                                         <TableCell className="min-w-[220px]">
                                                             <AccountIdSelector
                                                                 value={d.expenseAccountId}
+                                                                initialAccount={c.expenseAccount}
                                                                 onSelect={(val) => setDrafts(prev => ({ ...prev, [c.providerNit]: { ...d, expenseAccountId: val } }))}
                                                             />
                                                         </TableCell>
                                                         <TableCell className="min-w-[260px]">
                                                             <WithholdingTaxSelector
                                                                 value={d.withholdingTaxId}
+                                                                initialTax={c.withholdingTax}
                                                                 onSelect={(val) => setDrafts(prev => ({ ...prev, [c.providerNit]: { ...d, withholdingTaxId: val } }))}
                                                             />
                                                         </TableCell>
