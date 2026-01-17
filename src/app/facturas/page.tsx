@@ -44,6 +44,7 @@ import {
     TabsTrigger
 } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
+import { SiigoCausationModal } from "@/components/siigo-causation-modal";
 
 
 type ItemsPerPage = 20 | 40 | 60;
@@ -58,6 +59,8 @@ export default function FacturasPage() {
     const [isDownloadModalOpen, setIsDownloadModalOpen] = useState(false);
     const [selectedPdfUrl, setSelectedPdfUrl] = useState<string | null>(null);
     const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
+    const [isCausationModalOpen, setIsCausationModalOpen] = useState(false);
+    const [selectedCausationId, setSelectedCausationId] = useState<string | null>(null);
     const [searchTerm, setSearchTerm] = useState("");
     const [activeTab, setActiveTab] = useState("all");
     const [selectedInvoices, setSelectedInvoices] = useState<string[]>([]);
@@ -579,6 +582,18 @@ export default function FacturasPage() {
                                                         >
                                                             <FileCode className="h-4 w-4" />
                                                         </Button>
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            onClick={() => {
+                                                                setSelectedCausationId(invoice.id);
+                                                                setIsCausationModalOpen(true);
+                                                            }}
+                                                            className="h-8 w-8 text-indigo-600 hover:bg-indigo-50"
+                                                            title="Contabilizar en Siigo"
+                                                        >
+                                                            <BadgeCheck className="h-4 w-4" />
+                                                        </Button>
                                                     </div>
                                                 </td>
                                             </tr>
@@ -703,6 +718,14 @@ export default function FacturasPage() {
                 onOpenChange={setIsPdfModalOpen}
                 pdfUrl={selectedPdfUrl}
                 fileName="Factura Electrónica"
+            />
+            <SiigoCausationModal
+                invoiceId={selectedCausationId}
+                open={isCausationModalOpen}
+                onOpenChange={setIsCausationModalOpen}
+                onSuccess={() => {
+                    loadInvoicesFromDB();
+                }}
             />
         </div >
     );

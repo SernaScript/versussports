@@ -206,3 +206,39 @@ export async function createJournal(journalData: any) {
         return { success: false, error: "Error de comunicación con Siigo" };
     }
 }
+
+// --- Purchases (Facturas de Compra) ---
+
+export async function createPurchaseInvoice(invoiceData: any) {
+    try {
+        const auth = await getSiigoAuthToken();
+        if (!auth) return { success: false, error: "No hay credenciales de Siigo configuradas o fallo autenticación." };
+
+        console.log("Enviando factura de compra a Siigo:", JSON.stringify(invoiceData, null, 2));
+
+        const response = await fetch("https://api.siigo.com/v1/purchases", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${auth.token}`,
+                "Partner-Id": auth.partnerId
+            },
+            body: JSON.stringify(invoiceData)
+        });
+
+        const result = await response.json();
+
+        if (response.ok) {
+            return { success: true, data: result };
+        } else {
+            console.error("Siigo Purchase Error:", JSON.stringify(result, null, 2));
+            return {
+                success: false,
+                error: result.Errors?.[0]?.Message || result.message || "Error al crear factura de compra en Siigo"
+            };
+        }
+    } catch (error) {
+        console.error("Error creating purchase invoice:", error);
+        return { success: false, error: "Error de comunicación con Siigo" };
+    }
+}
