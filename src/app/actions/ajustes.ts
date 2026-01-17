@@ -223,9 +223,11 @@ export async function deleteBankExpenseConcept(id: string) {
 
 // --- Document Types ---
 
-export async function getDocumentTypes() {
+export async function getDocumentTypes(type?: string) {
     try {
+        const where = type ? { type } : undefined;
         const types = await prisma.siigoDocumentType.findMany({
+            where,
             orderBy: { code: 'asc' }
         });
         return { success: true, data: types };
@@ -234,7 +236,77 @@ export async function getDocumentTypes() {
     }
 }
 
-export async function syncSiigoDocumentTypes() {
-    // Endpoint non-existent or not documented in PROJECT_CONTEXT.md
-    return { success: true, count: 0 };
+export async function syncSiigoDocumentTypes(type: string = 'FC') {
+    try {
+        const auth = await getSiigoAuthToken();
+        if (!auth) return { success: false, error: "No hay credenciales configuradas." };
+
+        const res = await fetch(`https://api.siigo.com/v1/document-types?type=${type}`, {
+            headers: {
+                Authorization: `Bearer ${auth.token}`,
+                "Partner-Id": auth.partnerId
+            },
+            cache: 'no-store'
+        });
+
+        if (!res.ok) {
+            const errorData = await res.json();
+            return { success: false, error: errorData.message || "Error al obtener tipos de documento de Siigo." };
+        }
+
+        const data = await res.json();
+
+        if (!Array.isArray(data)) {
+            return { success: false, error: "Respuesta inválida de Siigo (no es un array)." };
+        }
+
+        let count = 0;
+        for (const item of data) {
+            await prisma.siigoDocumentType.upsert({
+                where: { id: item.id },
+                update: {
+                    code: item.code,
+                    name: item.name,
+                    description: item.description,
+                    active: item.active,
+                    type: item.type,
+                    // New FC fields
+                    documentSupport: item.document_support,
+                    costCenter: item.cost_center,
+                    costCenterMandatory: item.cost_center_mandatory,
+                    automaticNumber: item.automatic_number,
+                    consecutive: item.consecutive,
+                    decimals: item.decimals,
+                    consumptionTax: item.consumption_tax,
+                    reteiva: item.reteiva,
+                    reteica: item.reteica
+                },
+                create: {
+                    id: item.id,
+                    code: item.code,
+                    name: item.name,
+                    description: item.description,
+                    active: item.active,
+                    type: item.type,
+                    // New FC fields
+                    documentSupport: item.document_support,
+                    costCenter: item.cost_center,
+                    costCenterMandatory: item.cost_center_mandatory,
+                    automaticNumber: item.automatic_number,
+                    consecutive: item.consecutive,
+                    decimals: item.decimals,
+                    consumptionTax: item.consumption_tax,
+                    reteiva: item.reteiva,
+                    reteica: item.reteica
+                }
+            });
+            count++;
+        }
+
+        revalidatePath("/ajustes");
+        return { success: true, count };
+    } catch (error) {
+        console.error("Error syncing document types:", error);
+        return { success: false, error: "Error interno al sincronizar tipos de documento." };
+    }
 }

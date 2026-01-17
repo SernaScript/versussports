@@ -39,7 +39,7 @@ import { cn } from "@/lib/utils";
 // --- Main Layout ---
 
 export default function AjustesPage() {
-    const [activeSection, setActiveSection] = useState<"general" | "vouchers" | "accounts" | "concepts" | "suppliers" | "provider-configs" | "cost-centers" | "products" | "taxes" | "payment-types" | "currencies">("vouchers");
+    const [activeSection, setActiveSection] = useState<"general" | "vouchers" | "accounts" | "concepts" | "suppliers" | "provider-configs" | "cost-centers" | "products" | "taxes" | "payment-types" | "currencies" | "invoice-types">("vouchers");
 
     return (
         <div className="flex flex-col md:flex-row h-[calc(100vh-4rem)]">
@@ -77,6 +77,12 @@ export default function AjustesPage() {
                 <div className="pt-4 border-t mt-2">
                     <p className="text-xs font-semibold text-gray-400 uppercase px-2 mb-2">Facturas de Compra</p>
                 </div>
+                <NavButton
+                    active={activeSection === "invoice-types"}
+                    onClick={() => setActiveSection("invoice-types")}
+                    icon={<FileText className="w-4 h-4 mr-2" />}
+                    label="Tipos de Factura"
+                />
                 <NavButton
                     active={activeSection === "suppliers"}
                     onClick={() => setActiveSection("suppliers")}
@@ -127,6 +133,7 @@ export default function AjustesPage() {
                 {activeSection === "accounts" && <AccountsSection />}
                 {activeSection === "concepts" && <ConceptsSection />}
                 {activeSection === "general" && <GeneralSettingsSection />}
+                {activeSection === "invoice-types" && <InvoiceTypesSection />}
                 {activeSection === "suppliers" && <SuppliersSection />}
                 {activeSection === "provider-configs" && <ProviderConfigsSection />}
                 {activeSection === "cost-centers" && <CostCentersSection />}
@@ -753,6 +760,129 @@ function AccountSelector({ value, onSelect }: { value: string, onSelect: (val: s
 }
 
 // --- New Sections for Purchase Invoices ---
+
+function InvoiceTypesSection() {
+    const [types, setTypes] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [syncing, setSyncing] = useState(false);
+
+    useEffect(() => {
+        loadTypes();
+    }, []);
+
+    const loadTypes = async () => {
+        setLoading(true);
+        const res = await getDocumentTypes('FC');
+        if (res.success && res.data) {
+            setTypes(res.data);
+        }
+        setLoading(false);
+    };
+
+    const handleSync = async () => {
+        setSyncing(true);
+        const res = await syncSiigoDocumentTypes('FC');
+        setSyncing(false);
+        if (res.success) {
+            toast.success(`Se sincronizaron ${res.count} tipos de factura.`);
+            loadTypes();
+        } else {
+            toast.error(("error" in res && res.error) ? (res as any).error : "Error al sincronizar tipos de factura");
+        }
+    };
+
+    return (
+        <div className="space-y-6">
+            <div>
+                <h2 className="text-2xl font-bold tracking-tight">Tipos de Factura (FC)</h2>
+                <p className="text-muted-foreground">Configuración detallada de los tipos de factura de compra.</p>
+            </div>
+
+            <Card>
+                <CardHeader>
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <CardTitle>Tipos de Documento FC</CardTitle>
+                            <CardDescription>Parámetros sincronizados desde Siigo.</CardDescription>
+                        </div>
+                        <Button onClick={handleSync} disabled={syncing}>
+                            {syncing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
+                            Sincronizar (FC)
+                        </Button>
+                    </div>
+                </CardHeader>
+                <CardContent>
+                    {loading ? (
+                        <LoadingSection />
+                    ) : (
+                        <div className="rounded-md border bg-white overflow-x-auto">
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>Código</TableHead>
+                                        <TableHead>Nombre</TableHead>
+                                        <TableHead className="text-center">Soporte</TableHead>
+                                        <TableHead className="text-center">C. Costo</TableHead>
+                                        <TableHead className="text-center"># Auto</TableHead>
+                                        <TableHead className="text-center">Decimales</TableHead>
+                                        <TableHead className="text-center">Imp. Consumo</TableHead>
+                                        <TableHead className="text-center">ReteIVA</TableHead>
+                                        <TableHead className="text-center">ReteICA</TableHead>
+                                        <TableHead>Estado</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {types.length === 0 ? (
+                                        <TableRow>
+                                            <TableCell colSpan={10} className="text-center py-8 text-gray-500">No hay tipos de factura sincronizados.</TableCell>
+                                        </TableRow>
+                                    ) : (
+                                        types.map((t) => (
+                                            <TableRow key={t.id}>
+                                                <TableCell className="font-medium font-mono">{t.code}</TableCell>
+                                                <TableCell className="max-w-[200px] truncate" title={t.name}>{t.name}</TableCell>
+                                                <TableCell className="text-center">
+                                                    {t.documentSupport ? <Check className="w-4 h-4 mx-auto text-green-500" /> : <span className="text-gray-300">-</span>}
+                                                </TableCell>
+                                                <TableCell className="text-center">
+                                                    {t.costCenter ? (
+                                                        <Badge variant="outline" className={t.costCenterMandatory ? "border-red-200 bg-red-50 text-red-700" : ""}>
+                                                            {t.costCenterMandatory ? "Oblig." : "Opc."}
+                                                        </Badge>
+                                                    ) : <span className="text-gray-300">-</span>}
+                                                </TableCell>
+                                                <TableCell className="text-center">
+                                                    {t.automaticNumber ? <Check className="w-4 h-4 mx-auto text-blue-500" /> : <span className="text-xs text-gray-500">Consec: {t.consecutive}</span>}
+                                                </TableCell>
+                                                <TableCell className="text-center">
+                                                    {t.decimals ? <Check className="w-4 h-4 mx-auto text-green-500" /> : <span className="text-gray-300">-</span>}
+                                                </TableCell>
+                                                <TableCell className="text-center">
+                                                    {t.consumptionTax ? <Check className="w-4 h-4 mx-auto text-green-500" /> : <span className="text-gray-300">-</span>}
+                                                </TableCell>
+                                                <TableCell className="text-center">
+                                                    {t.reteiva ? <Check className="w-4 h-4 mx-auto text-green-500" /> : <span className="text-gray-300">-</span>}
+                                                </TableCell>
+                                                <TableCell className="text-center">
+                                                    {t.reteica ? <Check className="w-4 h-4 mx-auto text-green-500" /> : <span className="text-gray-300">-</span>}
+                                                </TableCell>
+                                                <TableCell>
+                                                    <Badge variant={t.active ? "outline" : "secondary"}>
+                                                        {t.active ? "Activo" : "Inactivo"}
+                                                    </Badge>
+                                                </TableCell>
+                                            </TableRow>
+                                        ))
+                                    )}
+                                </TableBody>
+                            </Table>
+                        </div>
+                    )}
+                </CardContent>
+            </Card>
+        </div>
+    );
+}
 
 function SuppliersSection() {
     const [suppliers, setSuppliers] = useState<any[]>([]);

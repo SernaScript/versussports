@@ -45,6 +45,18 @@ import {
 } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { SiigoCausationModal } from "@/components/siigo-causation-modal";
+import {
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+    Command,
+    CommandGroup,
+    CommandItem,
+    CommandList,
+} from "@/components/ui/command";
+import { Check } from "lucide-react";
 
 
 type ItemsPerPage = 20 | 40 | 60;
@@ -64,6 +76,12 @@ export default function FacturasPage() {
     const [searchTerm, setSearchTerm] = useState("");
     const [activeTab, setActiveTab] = useState("all");
     const [selectedInvoices, setSelectedInvoices] = useState<string[]>([]);
+    const [selectedDocumentType, setSelectedDocumentType] = useState<string | null>(null);
+
+    const uniqueDocumentTypes = useMemo(() => {
+        const types = new Set(invoices.map(i => i.documentType).filter(Boolean));
+        return Array.from(types).sort() as string[];
+    }, [invoices]);
 
     useEffect(() => {
         // Load invoices from database
@@ -195,6 +213,11 @@ export default function FacturasPage() {
             );
         }
 
+        // Apply document type filter
+        if (selectedDocumentType) {
+            result = result.filter(invoice => invoice.documentType === selectedDocumentType);
+        }
+
         // Apply tab filter
         if (activeTab !== "all") {
             result = result.filter((invoice) => {
@@ -223,7 +246,7 @@ export default function FacturasPage() {
         });
 
         return result;
-    }, [invoices, searchTerm, activeTab]);
+    }, [invoices, searchTerm, activeTab, selectedDocumentType]);
 
     // Paginate invoices
     const paginatedInvoices = useMemo(() => {
@@ -423,10 +446,43 @@ export default function FacturasPage() {
                             <Building2 className="mr-2 h-4 w-4" />
                             Proveedor
                         </Button>
-                        <Button variant="ghost" className="h-10 text-slate-600 hover:bg-slate-100 px-3">
-                            <Filter className="mr-2 h-4 w-4" />
-                            Tipo
-                        </Button>
+                        <Popover>
+                            <PopoverTrigger asChild>
+                                <Button variant="ghost" className="h-10 text-slate-600 hover:bg-slate-100 px-3">
+                                    <Filter className="mr-2 h-4 w-4" />
+                                    {selectedDocumentType || "Tipo"}
+                                </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-[200px] p-0" align="start">
+                                <Command>
+                                    <CommandList>
+                                        <CommandGroup>
+                                            <CommandItem
+                                                onSelect={() => setSelectedDocumentType(null)}
+                                                className="cursor-pointer"
+                                            >
+                                                <div className={cn("mr-2 flex h-4 w-4 items-center justify-center")}>
+                                                    {!selectedDocumentType && <Check className="h-4 w-4" />}
+                                                </div>
+                                                Todos
+                                            </CommandItem>
+                                            {uniqueDocumentTypes.map((type) => (
+                                                <CommandItem
+                                                    key={type}
+                                                    onSelect={() => setSelectedDocumentType(type === selectedDocumentType ? null : type)}
+                                                    className="cursor-pointer"
+                                                >
+                                                    <div className={cn("mr-2 flex h-4 w-4 items-center justify-center")}>
+                                                        {selectedDocumentType === type && <Check className="h-4 w-4" />}
+                                                    </div>
+                                                    {type}
+                                                </CommandItem>
+                                            ))}
+                                        </CommandGroup>
+                                    </CommandList>
+                                </Command>
+                            </PopoverContent>
+                        </Popover>
                         <Button variant="ghost" className="h-10 text-slate-600 hover:bg-slate-100 px-3">
                             <Calendar className="mr-2 h-4 w-4" />
                             Fecha de emisión

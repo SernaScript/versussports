@@ -148,6 +148,9 @@ export async function previewSiigoCausation(invoiceId: string) {
             };
         }
 
+        // Get the account code for product mapping
+        const productCode = providerConfig.expenseAccount?.code || "001";
+
         // --- ITEM GENERATION LOGIC ---
         let items: any[] = [];
         let fromXml = false;
@@ -170,18 +173,13 @@ export async function previewSiigoCausation(invoiceId: string) {
                             const mappedTaxes = x.taxesRaw
                                 .map(t => {
                                     const id = getSiigoTaxId(t.rate);
-                                    return id ? { id, value: t.value } : null; // Siigo might calculate value, but sending ID is key.
-                                    // If strict checking required: return id ? { id } : null; 
-                                    // But typically sending ID is enough to trigger tax engine, 
-                                    // OR we calculate it. Use { id } for now? 
-                                    // Documentation often says { id: 123 }.
-                                    // User said: "Si es 19% el codigo debe ser 27572".
-                                    // Let's assume structure is { id: number }.
+                                    return id ? { id, value: t.value } : null;
                                 })
                                 .filter(Boolean);
 
                             return {
-                                code: "001", // Placeholder, requires product mapping
+                                type: "Account",
+                                code: productCode, // Use the mapped account code
                                 description: x.description,
                                 quantity: x.quantity,
                                 price: x.price,
@@ -223,7 +221,8 @@ export async function previewSiigoCausation(invoiceId: string) {
             const description = `Factura de Compra ${invoice.prefix || ""}${invoice.folio} - ${invoice.issuerName}`;
 
             items = [{
-                code: "001",
+                type: "Account",
+                code: productCode,
                 description: description,
                 quantity: 1,
                 price: baseValue,
@@ -236,23 +235,34 @@ export async function previewSiigoCausation(invoiceId: string) {
 
         const date = invoice.issueDate.toISOString().split("T")[0];
 
+        // Calculate total from items to match Siigo's calculation (max 2 decimals)
+        const totalPayments = items.reduce((acc, item) => {
+            const itemBase = item.price * item.quantity;
+            const itemTaxes = item.taxes ? item.taxes.reduce((tAcc: number, t: any) => tAcc + t.value, 0) : 0;
+            return acc + itemBase + itemTaxes;
+        }, 0);
+
         // Payments
         const payments = [
             {
-                id: 1, // Default ID for "Crédito" or similar? Need to fetch Payment Types.
-                value: Number(invoice.total),
-                due_date: date // Assume due today if unknown
+                id: 9585,
+                value: Number(totalPayments.toFixed(2)),
+                due_date: date
             }
         ];
 
         const payload = {
             document: {
-                id: 2445 // Need a valid Document Type ID for Purchases. 
+                id: 46614
             },
             date: date,
-            customer: {
+            supplier: {
                 identification: invoice.issuerNit,
                 branch_office: 0
+            },
+            provider_invoice: {
+                prefix: invoice.prefix || "",
+                number: invoice.folio || ""
             },
             items: items,
             payments: payments,
@@ -293,7 +303,10 @@ export async function createSiigoCausation(invoiceId: string, payload: any) {
         if (result.success) {
             await prisma.dianInvoice.update({
                 where: { id: invoiceId },
-                data: { isAccounted: true },
+                data: {
+                    isAccounted: true,
+                    causationResult: result.data
+                },
             });
             revalidatePath("/facturas");
         }

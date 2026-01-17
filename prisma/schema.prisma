@@ -85,6 +85,7 @@ model DianInvoice {
   isDownloaded       Boolean  @default(false) @map("is_downloaded")
   XMLURL             String?  @map("xml_url")
   PDFURL             String?  @map("pdf_url")
+  causationResult    Json?    @map("causation_result")
 
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
@@ -156,7 +157,18 @@ model SiigoDocumentType {
   name        String   // The Name (e.g. "Comprobante de Egreso")
   description String?
   active      Boolean  @default(true)
-  type        String?  // 'Journal', 'Invoice', etc.
+  type        String?  // 'Journal', 'Invoice', 'FC', etc.
+
+  // Properties for Invoice Types (FC) and others
+  documentSupport      Boolean? @map("document_support")
+  costCenter           Boolean? @map("cost_center")
+  costCenterMandatory  Boolean? @map("cost_center_mandatory")
+  automaticNumber      Boolean? @map("automatic_number")
+  consecutive          Int?
+  decimals             Boolean?
+  consumptionTax       Boolean? @map("consumption_tax")
+  reteiva              Boolean?
+  reteica              Boolean?
 
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
