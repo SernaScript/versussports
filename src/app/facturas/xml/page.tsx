@@ -19,7 +19,10 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { parseInvoiceItems, formatXML, parseInvoiceHeader, InvoiceItem, InvoiceHeader } from "@/app/facturas/utils/xml-parser";
+import { parseInvoiceItems, formatXML, parseInvoiceHeader, parseCufeFromXml, InvoiceItem, InvoiceHeader } from "@/app/facturas/utils/xml-parser";
+import { getDianInvoiceById } from "@/app/actions/facturas";
+import { SiigoCausationModal } from "@/components/siigo-causation-modal";
+import { BadgeCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 function XMLViewerContent() {
@@ -33,6 +36,9 @@ function XMLViewerContent() {
     const [items, setItems] = useState<InvoiceItem[]>([]);
     const [invoiceHeader, setInvoiceHeader] = useState<InvoiceHeader | null>(null);
     const [activeTab, setActiveTab] = useState<"items" | "xml">("items");
+    const [invoiceId, setInvoiceId] = useState<string | null>(null);
+    const [dbInvoice, setDbInvoice] = useState<any>(null);
+    const [isCausationModalOpen, setIsCausationModalOpen] = useState(false);
 
     useEffect(() => {
         if (xmlUrl) {
@@ -48,12 +54,23 @@ function XMLViewerContent() {
                     }
                     return response.text();
                 })
-                .then((text) => {
+                .then(async (text) => {
                     setXmlContent(text);
                     const parsedItems = parseInvoiceItems(text);
                     const header = parseInvoiceHeader(text);
                     setItems(parsedItems);
                     setInvoiceHeader(header);
+                    
+                    // Extract CUFE and load invoice from database
+                    const cufe = parseCufeFromXml(text);
+                    if (cufe) {
+                        setInvoiceId(cufe);
+                        const invoiceResult = await getDianInvoiceById(cufe);
+                        if (invoiceResult.success && invoiceResult.data) {
+                            setDbInvoice(invoiceResult.data);
+                        }
+                    }
+                    
                     setLoading(false);
                 })
                 .catch((err) => {
@@ -132,8 +149,51 @@ function XMLViewerContent() {
 
     return (
         <div className="flex flex-col h-full bg-[#f1f5f9]">
+            {/* Action Bar Header - Inside XMLViewerContent to access state */}
+            <div className="bg-white/90 backdrop-blur-xl border-b border-slate-200 px-6 py-4 sticky top-0 z-50">
+                <div className="container mx-auto flex items-center justify-between">
+                    <div className="flex items-center gap-6">
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => router.push("/facturas")}
+                            className="bg-slate-100 border border-slate-200 text-slate-800 hover:bg-slate-200 h-10 w-10 rounded-full transition-all"
+                        >
+                            <ArrowLeft className="h-5 w-5" />
+                        </Button>
+                        <span className="text-sm font-black text-slate-500 uppercase tracking-[0.3em]">Auditoría de XML</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                        {invoiceId && (
+                            <Button 
+                                variant="outline" 
+                                size="sm" 
+                                className="border-indigo-200 text-indigo-700 font-black text-[11px] uppercase tracking-widest hover:bg-indigo-50"
+                                onClick={() => setIsCausationModalOpen(true)}
+                                disabled={!invoiceId || (dbInvoice?.isAccounted === true)}
+                            >
+                                <BadgeCheck className="mr-2 h-4 w-4" />
+                                {dbInvoice?.isAccounted ? "Ya Contabilizado" : "Contabilizar"}
+                            </Button>
+                        )}
+                        <Button variant="outline" size="sm" className="hidden sm:flex border-slate-200 text-slate-700 font-black text-[11px] uppercase tracking-widest hover:bg-slate-50">
+                            <Download className="mr-2 h-4 w-4" />
+                            Expediente XML
+                        </Button>
+                        <Button variant="outline" size="sm" className="hidden sm:flex border-slate-200 text-slate-700 font-black text-[11px] uppercase tracking-widest hover:bg-slate-50">
+                            <Printer className="mr-2 h-4 w-4" />
+                            Imprimir PDF
+                        </Button>
+                        <div className="w-px h-6 bg-slate-200 mx-2 hidden sm:block"></div>
+                        <Badge className="bg-slate-900 text-white border-none text-[10px] font-black uppercase tracking-widest py-1.5 px-4 shadow-sm">
+                            DIAN Standard
+                        </Badge>
+                    </div>
+                </div>
+            </div>
+
             {/* STICKY TOP CONTAINER: Provider info + Tabs */}
-            <div className="sticky top-[69px] z-40 bg-[#f1f5f9] pt-8 pb-4 border-b border-transparent">
+            <div className="sticky top-[73px] z-40 bg-[#f1f5f9] pt-8 pb-4 border-b border-transparent">
                 <div className="flex flex-col gap-2 mb-6">
                     <Badge variant="outline" className="w-fit bg-white/80 text-slate-600 border-slate-300 text-xs py-0.5 px-3 font-bold mb-2 shadow-sm">
                         PROVEEDOR EMISOR
@@ -182,6 +242,56 @@ function XMLViewerContent() {
 
                     {/* Left Column: Stat Cards - Stays sticky while table scrolls */}
                     <div className="lg:col-span-1 space-y-4 sticky top-[360px]">
+                        {/* Comparison Card - Show DB vs XML values */}
+                        {dbInvoice && (
+                            <Card className="border-none shadow-sm bg-amber-50/50 overflow-hidden border border-amber-200">
+                                <CardContent className="p-6">
+                                    <p className="text-xs font-black text-amber-700 uppercase tracking-[0.1em] mb-3">Comparación: BD vs XML</p>
+                                    <div className="space-y-3 text-xs">
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-slate-600 font-medium">Total:</span>
+                                            <div className="flex flex-col items-end gap-0.5">
+                                                <span className={cn(
+                                                    "font-bold",
+                                                    Math.abs((dbInvoice.total - (invoiceHeader?.legalMonetaryTotal?.payableAmount || 0))) > 1 
+                                                        ? "text-red-600" 
+                                                        : "text-green-600"
+                                                )}>
+                                                    BD: {formatCurrency(dbInvoice.total)}
+                                                </span>
+                                                <span className="text-slate-500">
+                                                    XML: {formatCurrency(invoiceHeader?.legalMonetaryTotal?.payableAmount || 0)}
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-slate-600 font-medium">IVA:</span>
+                                            <div className="flex flex-col items-end gap-0.5">
+                                                <span className={cn(
+                                                    "font-bold",
+                                                    Math.abs((dbInvoice.vat - (invoiceHeader?.totalTaxAmount || 0))) > 1 
+                                                        ? "text-red-600" 
+                                                        : "text-green-600"
+                                                )}>
+                                                    BD: {formatCurrency(dbInvoice.vat)}
+                                                </span>
+                                                <span className="text-slate-500">
+                                                    XML: {formatCurrency(invoiceHeader?.totalTaxAmount || 0)}
+                                                </span>
+                                            </div>
+                                        </div>
+                                        {dbInvoice.isAccounted && (
+                                            <div className="pt-2 border-t border-amber-200">
+                                                <Badge className="bg-green-100 text-green-700 border-none text-[10px] font-black">
+                                                    ✓ Contabilizado
+                                                </Badge>
+                                            </div>
+                                        )}
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        )}
+                        
                         {/* Subtotal Card */}
                         <Card className="border-none shadow-sm bg-white overflow-hidden">
                             <CardContent className="p-6">
@@ -295,6 +405,23 @@ function XMLViewerContent() {
                     </div>
                 </div>
             </div>
+
+            {invoiceId && (
+                <SiigoCausationModal
+                    invoiceId={invoiceId}
+                    open={isCausationModalOpen}
+                    onOpenChange={setIsCausationModalOpen}
+                    onSuccess={async () => {
+                        // Reload invoice data after successful causation
+                        if (invoiceId) {
+                            const invoiceResult = await getDianInvoiceById(invoiceId);
+                            if (invoiceResult.success && invoiceResult.data) {
+                                setDbInvoice(invoiceResult.data);
+                            }
+                        }
+                    }}
+                />
+            )}
         </div>
     );
 }
@@ -302,37 +429,6 @@ function XMLViewerContent() {
 export default function XMLViewerPage() {
     return (
         <div className="min-h-screen bg-[#f1f5f9] text-slate-900">
-            {/* Action Bar Header - Top Level Sticky (z-50) */}
-            <div className="bg-white/90 backdrop-blur-xl border-b border-slate-200 px-6 py-4 sticky top-0 z-50">
-                <div className="container mx-auto flex items-center justify-between">
-                    <div className="flex items-center gap-6">
-                        <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => window.history.back()}
-                            className="bg-slate-100 border border-slate-200 text-slate-800 hover:bg-slate-200 h-10 w-10 rounded-full transition-all"
-                        >
-                            <ArrowLeft className="h-5 w-5" />
-                        </Button>
-                        <span className="text-sm font-black text-slate-500 uppercase tracking-[0.3em]">Auditoría de XML</span>
-                    </div>
-                    <div className="flex items-center gap-3">
-                        <Button variant="outline" size="sm" className="hidden sm:flex border-slate-200 text-slate-700 font-black text-[11px] uppercase tracking-widest hover:bg-slate-50">
-                            <Download className="mr-2 h-4 w-4" />
-                            Expediente XML
-                        </Button>
-                        <Button variant="outline" size="sm" className="hidden sm:flex border-slate-200 text-slate-700 font-black text-[11px] uppercase tracking-widest hover:bg-slate-50">
-                            <Printer className="mr-2 h-4 w-4" />
-                            Imprimir PDF
-                        </Button>
-                        <div className="w-px h-6 bg-slate-200 mx-2 hidden sm:block"></div>
-                        <Badge className="bg-slate-900 text-white border-none text-[10px] font-black uppercase tracking-widest py-1.5 px-4 shadow-sm">
-                            DIAN Standard
-                        </Badge>
-                    </div>
-                </div>
-            </div>
-
             <div className="container mx-auto px-6 lg:px-12">
                 <Suspense fallback={
                     <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">

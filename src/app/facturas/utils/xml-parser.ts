@@ -200,6 +200,58 @@ export function parseInvoiceItems(xmlContent: string): InvoiceItem[] {
 }
 
 /**
+ * Extraer CUFE/CUDE del XML
+ * @param xmlContent Contenido del XML como string
+ * @returns CUFE/CUDE o null si no se encuentra
+ */
+export function parseCufeFromXml(xmlContent: string): string | null {
+    try {
+        const parser = new DOMParser();
+        const xmlDoc = parser.parseFromString(xmlContent, "text/xml");
+
+        // Verificar errores de parsing
+        const parserError = xmlDoc.querySelector("parsererror");
+        if (parserError) {
+            console.error("Error parsing XML:", parserError.textContent);
+            return null;
+        }
+
+        // Namespaces UBL
+        const namespaces = {
+            cbc: "urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2",
+        };
+
+        // Buscar UUID con schemeName="CUFE-SHA384" o "CUDE-SHA384"
+        const uuidElements = xmlDoc.getElementsByTagNameNS(namespaces.cbc, "UUID");
+        
+        for (let i = 0; i < uuidElements.length; i++) {
+            const uuidElement = uuidElements[i];
+            const schemeName = uuidElement.getAttribute("schemeName");
+            
+            if (schemeName && (schemeName.includes("CUFE") || schemeName.includes("CUDE"))) {
+                const cufe = uuidElement.textContent?.trim();
+                if (cufe) {
+                    return cufe;
+                }
+            }
+        }
+
+        // Fallback: buscar cualquier UUID si no se encuentra con schemeName
+        if (uuidElements.length > 0) {
+            const firstUuid = uuidElements[0].textContent?.trim();
+            if (firstUuid) {
+                return firstUuid;
+            }
+        }
+
+        return null;
+    } catch (error) {
+        console.error("Error parsing CUFE from XML:", error);
+        return null;
+    }
+}
+
+/**
  * Extraer datos clave de la factura (Proveedor, Prefijo, Folio)
  * @param xmlContent Contenido del XML como string
  * @returns Objeto con los datos clave de la factura

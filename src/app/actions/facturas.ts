@@ -232,6 +232,76 @@ export async function saveDianInvoices(invoices: ProcessedDianInvoice[]) {
 }
 
 /**
+ * Obtiene una factura DIAN por su ID (CUFE/CUDE)
+ */
+export async function getDianInvoiceById(invoiceId: string) {
+    try {
+        const invoice = await prisma.dianInvoice.findUnique({
+            where: { id: invoiceId },
+        });
+
+        if (!invoice) {
+            return { success: false, error: "Factura no encontrada" };
+        }
+
+        const serializedInvoice = {
+            id: invoice.id,
+            documentType: invoice.documentType,
+            folio: invoice.folio,
+            prefix: invoice.prefix,
+            issueDate: invoice.issueDate,
+            issuerNit: invoice.issuerNit,
+            issuerName: String(invoice.issuerName || "").trim().toUpperCase(),
+            receiverNit: invoice.receiverNit,
+            receiverName: invoice.receiverName,
+            vat: Number(invoice.vat),
+            inc: Number(invoice.inc),
+            total: Number(invoice.total),
+            group: invoice.group,
+            currency: invoice.currency,
+            paymentMethod: invoice.paymentMethod,
+            paymentMedium: invoice.paymentMedium,
+            receptionDate: invoice.receptionDate,
+            ica: invoice.ica ? Number(invoice.ica) : null,
+            ic: invoice.ic ? Number(invoice.ic) : null,
+            stamp: invoice.stamp ? Number(invoice.stamp) : null,
+            incBags: invoice.incBags ? Number(invoice.incBags) : null,
+            carbonTax: invoice.carbonTax ? Number(invoice.carbonTax) : null,
+            fuelTax: invoice.fuelTax ? Number(invoice.fuelTax) : null,
+            dataTax: invoice.dataTax ? Number(invoice.dataTax) : null,
+            icl: invoice.icl ? Number(invoice.icl) : null,
+            inpp: invoice.inpp ? Number(invoice.inpp) : null,
+            ibua: invoice.ibua ? Number(invoice.ibua) : null,
+            icui: invoice.icui ? Number(invoice.icui) : null,
+            withheldVat: invoice.withheldVat ? Number(invoice.withheldVat) : null,
+            withheldIncome: invoice.withheldIncome ? Number(invoice.withheldIncome) : null,
+            withheldIca: invoice.withheldIca ? Number(invoice.withheldIca) : null,
+            status: invoice.status,
+            isAccounted: invoice.isAccounted,
+            isDownloaded: invoice.isDownloaded,
+            causationResult: invoice.causationResult,
+            createdAt: invoice.createdAt,
+            updatedAt: invoice.updatedAt,
+            pdfUrl: invoice.PDFURL
+                ? invoice.PDFURL.startsWith('/api/downloads/')
+                    ? invoice.PDFURL
+                    : invoice.PDFURL.replace(/^downloads\//, '/api/downloads/').replace(/^\/downloads\//, '/api/downloads/')
+                : null,
+            xmlUrl: invoice.XMLURL
+                ? invoice.XMLURL.startsWith('/api/downloads/')
+                    ? invoice.XMLURL
+                    : invoice.XMLURL.replace(/^downloads\//, '/api/downloads/').replace(/^\/downloads\//, '/api/downloads/')
+                : null,
+        };
+
+        return { success: true, data: serializedInvoice };
+    } catch (error) {
+        console.error("Error obteniendo factura:", error);
+        return { success: false, error: "Error al obtener la factura" };
+    }
+}
+
+/**
  * Obtiene todas las facturas DIAN de la base de datos
  */
 export async function getDianInvoices() {

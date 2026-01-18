@@ -7,6 +7,14 @@ import { XMLParser } from "fast-xml-parser";
 import fs from "fs";
 import path from "path";
 
+// Helper to find value by key ignoring namespace prefix
+function findKey(obj: any, keyName: string): any {
+    if (!obj || typeof obj !== 'object') return undefined;
+    if (obj[keyName] !== undefined) return obj[keyName];
+    const found = Object.keys(obj).find(k => k.endsWith(`:${keyName}`) || k === keyName);
+    return found ? obj[found] : undefined;
+}
+
 // Helper to parse XML
 function extractItemsFromXml(xmlContent: string) {
     const parser = new XMLParser({
@@ -15,85 +23,89 @@ function extractItemsFromXml(xmlContent: string) {
     });
     const result = parser.parse(xmlContent);
 
-    // Navigate to Invoice (UBL 2.1 standard structure usually)
-    // Root can be 'Invoice' or 'fe:Invoice' (DIAN)
-    // DIAN XML attached document usually wraps the Invoice in 'cac:Attachment' -> 'cac:ExternalReference' -> 'cbc:Description' (base64)
-    // But typically the saved XML is the Invoice structure itself if extracted.
-    // Let's assume standard Invoice root.
-
-    // Attempt to find root
-    const root = result.Invoice || result["fe:Invoice"] || Object.values(result)[0]; // Fallback
+    // root could be Invoice, fe:Invoice, etc.
+    const root = findKey(result, "Invoice") || Object.values(result)[0];
 
     if (!root) return null;
 
-    // Check for lines
-    // Namespace prefixes can vary (cac:InvoiceLine, or just InvoiceLine)
-    // We'll iterate to find keys usually associated with lines.
-
-    // Normalize data access helper
-    const getVal = (obj: any, keys: string[]) => {
-        if (!obj) return undefined;
-        for (const k of keys) {
-            if (obj[k] !== undefined) return obj[k];
-            // Try with prefix
-            const withPrefix = Object.keys(obj).find(key => key.endsWith(`:${k}`) || key === k);
-            if (withPrefix) return obj[withPrefix];
-        }
-        return undefined;
-    };
-
-    const linesContainer = root["cac:InvoiceLine"] || root["InvoiceLine"];
+    const linesContainer = findKey(root, "InvoiceLine");
     // It might be an array or single object
     const lines = Array.isArray(linesContainer) ? linesContainer : (linesContainer ? [linesContainer] : []);
 
     if (lines.length === 0) return null;
 
     return lines.map((line: any) => {
-        // Description
-        const item = line["cac:Item"] || line["Item"];
-        const description = item ? (item["cbc:Description"] || item["Description"]) : "Item Sin Descripción";
+        // Item & Description
+        const item = findKey(line, "Item");
+        let description = item ? findKey(item, "Description") : "Item Sin Descripción";
+
+        // Append Brand/Model to description to match Inspector detail
+        const brand = findKey(item, "BrandName");
+        const model = findKey(item, "ModelName");
+        const sellersIdElement = findKey(findKey(item, "SellersItemIdentification"), "ID");
+        const standardIdElement = findKey(findKey(item, "StandardItemIdentification"), "ID");
+
+        let details = [];
+        if (brand) details.push(`Marca: ${brand}`);
+        if (model) details.push(`Modelo: ${model}`);
+        if (sellersIdElement) details.push(`Ref: ${sellersIdElement}`);
+
+        // Only append if strict matching is desired, but usually description is enough. 
+        // However, to "map as is in inspector", preserving this info in the single description field is helpful.
+        if (details.length > 0) {
+            description = `${description} (${details.join(", ")})`;
+        }
 
         // Quantity
-        const qtyObj = line["cbc:InvoicedQuantity"] || line["InvoicedQuantity"];
-        const quantity = Number(qtyObj?.["#text"] || qtyObj || 1);
+        const qtyObj = findKey(line, "InvoicedQuantity");
+        let quantity = Number(qtyObj?.["#text"] || qtyObj || 1);
+        if (isNaN(quantity) || !isFinite(quantity) || quantity <= 0) {
+            quantity = 1;
+        }
 
         // Price (Unit)
-        const priceObj = line["cac:Price"] || line["Price"];
-        const priceVal = priceObj ? (priceObj["cbc:PriceAmount"] || priceObj["PriceAmount"]) : 0;
-        const price = Number(priceVal?.["#text"] || priceVal || 0);
+        const priceObj = findKey(line, "Price");
+        const priceVal = priceObj ? findKey(priceObj, "PriceAmount") : null;
+        const priceRaw = priceVal?.["#text"] || priceVal || 0;
+        let price = Number(priceRaw);
+        if (isNaN(price) || !isFinite(price)) {
+            price = 0;
+        }
 
         // Taxes (detailed extraction)
-        const taxTotals = line["cac:TaxTotal"] || line["TaxTotal"];
+        const taxTotals = findKey(line, "TaxTotal");
         const taxes: { value: number, rate: number }[] = [];
 
         if (taxTotals) {
             const taxArr = Array.isArray(taxTotals) ? taxTotals : [taxTotals];
             taxArr.forEach((t: any) => {
-                const sub = t["cac:TaxSubtotal"] || t["TaxSubtotal"];
+                const sub = findKey(t, "TaxSubtotal");
                 if (sub) {
                     const subArr = Array.isArray(sub) ? sub : [sub];
                     subArr.forEach((s: any) => {
-                        const amountObj = s["cbc:TaxAmount"] || s["TaxAmount"];
-                        const amount = Number(amountObj?.["#text"] || amountObj || 0);
+                        const amountObj = findKey(s, "TaxAmount");
+                        let amount = Number(amountObj?.["#text"] || amountObj || 0);
+                        if (isNaN(amount) || !isFinite(amount)) amount = 0;
 
                         // Try to find rate
-                        const percentObj = s["cbc:Percent"] || s["Percent"]; // Standard UBL
-                        // Sometimes it's in cac:TaxCategory -> cbc:Percent
-                        let rate = Number(percentObj?.["#text"] || percentObj || 0);
+                        // Percent in TaxCategory usually, sometimes in Subtotal direct (rare)
+                        let percentObj = findKey(s, "Percent");
 
-                        if (!rate && (s["cac:TaxCategory"] || s["TaxCategory"])) {
-                            const cat = s["cac:TaxCategory"] || s["TaxCategory"];
-                            const catPercent = cat["cbc:Percent"] || cat["Percent"];
-                            rate = Number(catPercent?.["#text"] || catPercent || 0);
+                        if (!percentObj) {
+                            const cat = findKey(s, "TaxCategory");
+                            if (cat) percentObj = findKey(cat, "Percent");
                         }
+
+                        let rate = Number(percentObj?.["#text"] || percentObj || 0);
+                        if (isNaN(rate) || !isFinite(rate)) rate = 0;
 
                         // Fallback calculation if rate is missing but we have base
                         if (!rate) {
-                            const baseObj = s["cbc:TaxableAmount"] || s["TaxableAmount"] || t["cbc:TaxAmount"] || t["TaxAmount"]; // Rough guess
-                            // Actually TaxableAmount is usually in TaxSubtotal too
-                            const baseValObj = s["cbc:TaxableAmount"] || s["TaxableAmount"];
-                            const base = Number(baseValObj?.["#text"] || baseValObj || 0);
-                            if (base > 0) {
+                            const baseObj = findKey(s, "TaxableAmount") || findKey(t, "TaxAmount");
+                            let base = Number(baseObj?.["#text"] || baseObj || 0);
+                            if (isNaN(base) || !isFinite(base)) base = 0;
+
+                            if (base > 0 && amount > 0) {
                                 rate = (amount / base) * 100;
                             }
                         }
@@ -111,6 +123,119 @@ function extractItemsFromXml(xmlContent: string) {
             taxesRaw: taxes
         };
     });
+}
+
+function extractSupplierFromXml(xmlContent: string) {
+    const parser = new XMLParser({
+        ignoreAttributes: false,
+        attributeNamePrefix: "@_",
+        parseTagValue: false // Prevent "05" becoming 5
+    });
+    const result = parser.parse(xmlContent);
+    const root = result.Invoice || result["fe:Invoice"] || Object.values(result)[0];
+
+    if (!root) return null;
+
+    // Helper to traverse safely
+    const getVal = (obj: any, keys: string[]) => {
+        if (!obj) return undefined;
+        for (const k of keys) {
+            if (obj[k] !== undefined) return obj[k];
+            // Try with prefix
+            const withPrefix = Object.keys(obj).find(key => key.endsWith(`:${k}`) || key === k);
+            if (withPrefix) return obj[withPrefix];
+        }
+        return undefined;
+    };
+
+    const accountingSupplier = root["cac:AccountingSupplierParty"] || root["AccountingSupplierParty"];
+    if (!accountingSupplier) return null;
+
+    const party = accountingSupplier["cac:Party"] || accountingSupplier["Party"];
+    if (!party) return null;
+
+    // Name
+    const taxScheme = party["cac:PartyTaxScheme"] || party["PartyTaxScheme"];
+    // Usually name is in RegistrationName within PartyTaxScheme or PartyLegalEntity
+    let name = getVal(taxScheme, ["cbc:RegistrationName", "RegistrationName"]);
+    if (!name) {
+        const legalEntity = party["cac:PartyLegalEntity"] || party["PartyLegalEntity"];
+        name = getVal(legalEntity, ["cbc:RegistrationName", "RegistrationName"]);
+    }
+    // Fallback: PartyName
+    if (!name) {
+        const partyName = party["cac:PartyName"] || party["PartyName"];
+        name = getVal(partyName, ["cbc:Name", "Name"]);
+    }
+
+    // Identification (NIT) & id_type
+    const companyID = getVal(taxScheme, ["cbc:CompanyID", "CompanyID"]);
+    const idVal = companyID?.["#text"] || companyID;
+
+    // Determine id_type based on schemeName
+    // User rule: schemeName="31" (NIT) or "13" (CC).
+    // Siigo Mapping: '31' -> NIT, '13' -> Cédula.
+    let idType = '31'; // Default to NIT
+    const schemeName = companyID?.["@_schemeName"];
+    if (schemeName === '13') {
+        idType = '13';
+    } else if (schemeName === '31') {
+        idType = '31';
+    }
+
+    // Address extraction
+    // User rule:
+    // country_code <- cac:Country/cbc:IdentificationCode
+    // state_code <- cac:RegistrationAddress/cbc:CountrySubentityCode
+    // city_code <- cac:RegistrationAddress/cbc:ID
+
+    // Search in RegistrationAddress first (Tax address)
+    const regAddress = taxScheme?.["cac:RegistrationAddress"] || taxScheme?.["RegistrationAddress"] ||
+        party["cac:PhysicalLocation"]?.["cac:Address"]; // Fallback
+
+    let addressLine = "";
+    let cityObj = null;
+
+    if (regAddress) {
+        // Address Line
+        const lineObj = regAddress["cac:AddressLine"] || regAddress["AddressLine"];
+        addressLine = getVal(lineObj?.["cbc:Line"] || lineObj?.["Line"], ["#text"]) ||
+            lineObj?.["cbc:Line"] || lineObj?.["Line"] || "";
+
+        // Country Code
+        const countryObj = regAddress["cac:Country"] || regAddress["Country"];
+        const countryCode = getVal(countryObj, ["cbc:IdentificationCode", "IdentificationCode"])?.["#text"] ||
+            getVal(countryObj, ["cbc:IdentificationCode", "IdentificationCode"]) || "Co";
+
+        // State Code
+        const stateCodeVal = getVal(regAddress, ["cbc:CountrySubentityCode", "CountrySubentityCode"]);
+        const stateCode = stateCodeVal?.["#text"] || stateCodeVal || "00";
+
+        // City Code
+        const cityIDVal = getVal(regAddress, ["cbc:ID", "ID"]);
+        const cityCode = cityIDVal?.["#text"] || cityIDVal || "00000";
+
+        cityObj = {
+            country_code: String(countryCode),
+            state_code: String(stateCode),
+            city_code: String(cityCode)
+        };
+    }
+
+    // Contact
+    const contact = party["cac:Contact"] || party["Contact"];
+    const phone = getVal(contact, ["cbc:Telephone", "Telephone"]);
+    const email = getVal(contact, ["cbc:ElectronicMail", "ElectronicMail"]);
+
+    return {
+        identification: String(idVal || "").trim(),
+        id_type: idType,
+        name: String(name || "").trim().toUpperCase(),
+        email: String(email || ""),
+        phone: String(phone || ""),
+        address: String(addressLine || ""),
+        city: cityObj
+    };
 }
 
 function getSiigoTaxId(rate: number): number | null {
@@ -133,6 +258,8 @@ export async function previewSiigoCausation(invoiceId: string) {
             return { success: false, error: "Factura no encontrada" };
         }
 
+        // --- PRE-CHECK REMOVED per user request (Check on send instead) ---
+
         const providerConfig = await prisma.providerAccountingConfig.findUnique({
             where: { providerNit: invoice.issuerNit },
             include: {
@@ -153,7 +280,9 @@ export async function previewSiigoCausation(invoiceId: string) {
 
         // Get retention tax ID and Percentage if configured
         const retentionTaxId = providerConfig.withholdingTax?.siigoId ? Number(providerConfig.withholdingTax.siigoId) : null;
-        const retentionPercentage = providerConfig.withholdingTax?.percentage ? Number(providerConfig.withholdingTax.percentage) : 0;
+        const retentionPercentage = (providerConfig.withholdingTax as any)?.percentage
+            ? Number((providerConfig.withholdingTax as any).percentage)
+            : 0;
 
         // --- ITEM GENERATION LOGIC ---
         let items: any[] = [];
@@ -306,7 +435,8 @@ export async function previewSiigoCausation(invoiceId: string) {
                 body: payload,
                 invoice,
                 providerConfig,
-                source: fromXml ? "XML Parsed" : "Database Summary"
+                source: fromXml ? "XML Parsed" : "Database Summary",
+                retentionTaxId: retentionTaxId // Pass retention tax ID to frontend for proper display
             }
         };
 
@@ -322,7 +452,7 @@ export async function createSiigoCausation(invoiceId: string, payload: any) {
         // or just to ensure we send exactly what the user approved.
         // For security, we might re-validate or re-build, but for this specific "Approve Preview" flow, passing it back is easier.
 
-        const result = await createPurchaseInvoice(payload);
+        const result: any = await createPurchaseInvoice(payload);
 
         if (result.success) {
             await prisma.dianInvoice.update({
@@ -330,9 +460,47 @@ export async function createSiigoCausation(invoiceId: string, payload: any) {
                 data: {
                     isAccounted: true,
                     causationResult: result.data
-                },
+                } as any,
             });
             revalidatePath("/facturas");
+        } else {
+            // Check for missing supplier error
+            // Error structure example: { status: 400, errors: [{ code: 'invalid_reference', message: "The supplier doesn't exist..." }] }
+            // result.errorData contains this structure
+            if (result.errorData?.errors?.some((e: any) => e.code === 'invalid_reference' && e.message?.includes("supplier doesn't exist"))) {
+
+                // Fetch invoice to get XML URL (as we don't have it passed in payload mainly)
+                const invoice = await prisma.dianInvoice.findUnique({ where: { id: invoiceId } });
+
+                let supplierData = null;
+                if (invoice?.XMLURL) {
+                    try {
+                        const cleanPath = invoice.XMLURL.replace(/^\//, '').replace(/^downloads\//, '');
+                        const fullPath = path.join(process.cwd(), "downloads", cleanPath);
+                        if (fs.existsSync(fullPath)) {
+                            const xmlContent = fs.readFileSync(fullPath, "utf-8");
+                            supplierData = extractSupplierFromXml(xmlContent);
+                        }
+                    } catch (e) {
+                        console.warn("Failed to extract supplier from XML in createSiigoCausation:", e);
+                    }
+                }
+
+                // Fallback basic data
+                if (!supplierData && invoice) {
+                    supplierData = {
+                        identification: invoice.issuerNit,
+                        name: invoice.issuerName,
+                    };
+                }
+
+                return {
+                    success: false,
+                    missingSupplier: true,
+                    supplierData,
+                    error: "El proveedor no existe en Siigo. Por favor créelo para continuar."
+                };
+            }
         }
 
         return result;

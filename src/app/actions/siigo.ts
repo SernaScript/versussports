@@ -85,7 +85,7 @@ export async function testSiigoConnection(data: {
 
         // 2. Validación Real (Endpoint de Clientes)
         // Intentamos una petición simple para verificar que el Partner-Id y el Token son aceptados
-        const testResponse = await fetch("https://api.siigo.com/v1/customers?pageSize=1", {
+        const testResponse = await fetch("https://api.siigo.com/v1/suppliers?pageSize=1", {
             method: "GET",
             headers: {
                 "Content-Type": "application/json",
@@ -209,12 +209,12 @@ export async function createJournal(journalData: any) {
 
 // --- Purchases (Facturas de Compra) ---
 
-export async function createPurchaseInvoice(invoiceData: any) {
+export async function createPurchaseInvoice(invoiceData: any, isRetry = false): Promise<any> {
     try {
         const auth = await getSiigoAuthToken();
         if (!auth) return { success: false, error: "No hay credenciales de Siigo configuradas o fallo autenticación." };
 
-        console.log("Enviando factura de compra a Siigo:", JSON.stringify(invoiceData, null, 2));
+        console.log(`Enviando factura de compra a Siigo (${isRetry ? "RETRY" : "FIRST"}):`, JSON.stringify(invoiceData, null, 2));
 
         const response = await fetch("https://api.siigo.com/v1/purchases", {
             method: "POST",
@@ -232,9 +232,53 @@ export async function createPurchaseInvoice(invoiceData: any) {
             return { success: true, data: result };
         } else {
             console.error("Siigo Purchase Error:", JSON.stringify(result, null, 2));
+
+            // Siigo API can return errors in different formats: result.errors (array) or result.Errors (array)
+            const errorsArray = result.errors || result.Errors || [];
+
+            // Auto-Retry Logic for 'invalid_total_payments'
+            // Error example: "The total payments must be equal to the total purchase. The total purchase calculated is 18256000"
+            if (!isRetry && errorsArray.length > 0) {
+                // Try to find the invalid_total_payments error (case-insensitive for code)
+                const totalError = errorsArray.find((e: any) =>
+                    (e.code || e.Code) === 'invalid_total_payments'
+                );
+
+                if (totalError) {
+                    // Extract the calculated total from the message
+                    // Message format: "The total payments must be equal to the total purchase. The total purchase calculated is 18256000"
+                    const message = totalError.message || totalError.Message || '';
+                    const match = message.match(/calculated\s+is\s+(\d+(?:\.\d+)?)/i);
+
+                    if (match && match[1]) {
+                        const correctTotal = Number(match[1]);
+                        console.log(`Auto-correcting total payments to: ${correctTotal}`);
+
+                        // Clone data and update payments
+                        // Assumes simple case: Update the first payment (or the one matching standard flow)
+                        const newData = JSON.parse(JSON.stringify(invoiceData));
+                        if (newData.payments && newData.payments.length > 0) {
+                            // If multiple payments exist, this logic might be too simple, but usually we send 1 payment
+                            newData.payments[0].value = correctTotal;
+
+                            // Retry recursively
+                            return createPurchaseInvoice(newData, true);
+                        }
+                    } else {
+                        console.warn("Could not extract calculated total from error message:", message);
+                    }
+                }
+            }
+
+            // Handle error message extraction (support both formats)
+            const errorMessage = errorsArray.length > 0
+                ? (errorsArray[0].message || errorsArray[0].Message)
+                : (result.message || "Error al crear factura de compra en Siigo");
+
             return {
                 success: false,
-                error: result.Errors?.[0]?.Message || result.message || "Error al crear factura de compra en Siigo"
+                error: errorMessage,
+                errorData: result
             };
         }
     } catch (error) {

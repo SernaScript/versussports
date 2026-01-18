@@ -84,10 +84,10 @@ export async function syncSiigoSuppliers() {
             }
 
             const siigoSuppliers: SiigoCustomersApiResponse = await response.json();
-            const suppliers: SiigoCustomer[] = Array.isArray(siigoSuppliers) 
-                ? siigoSuppliers 
+            const suppliers: SiigoCustomer[] = Array.isArray(siigoSuppliers)
+                ? siigoSuppliers
                 : siigoSuppliers.results || [];
-            
+
             // If no suppliers returned or empty array, stop pagination
             if (!suppliers || suppliers.length === 0) {
                 hasMore = false;
@@ -103,10 +103,10 @@ export async function syncSiigoSuppliers() {
         let count = 0;
         for (const supplier of allSuppliers) {
             // Handle name as string or array and convert to uppercase
-            const name = (Array.isArray(supplier.name) 
-                ? supplier.name.join(" ") 
+            const name = (Array.isArray(supplier.name)
+                ? supplier.name.join(" ")
                 : (supplier.name || "")).toUpperCase();
-            
+
             // Handle address - can be string or object
             let addressStr: string | null = null;
             if (supplier.address) {
@@ -116,7 +116,7 @@ export async function syncSiigoSuppliers() {
                     addressStr = supplier.address.address;
                 }
             }
-            
+
             // Handle city - can be string or object
             let cityStr: string | null = null;
             if (supplier.city) {
@@ -130,7 +130,7 @@ export async function syncSiigoSuppliers() {
             if (!cityStr && supplier.address && typeof supplier.address === 'object' && supplier.address.city?.city_name) {
                 cityStr = supplier.address.city.city_name;
             }
-            
+
             // Convert siigoId to string (can be number or UUID)
             const siigoId = String(supplier.id);
 
@@ -172,16 +172,25 @@ export async function syncSiigoSuppliers() {
 
 export async function createSupplierInSiigo(data: {
     identification: string;
+    id_type?: string;
     name: string;
     email?: string;
     phone?: string;
     address?: string;
-    city?: string;
+    city?: any; // Structured city object or string
     type?: string;
 }) {
     try {
         const auth = await getSiigoAuthToken();
         if (!auth) return { success: false, error: "No hay credenciales de Siigo o fallo autenticación" };
+
+        // Handle city: If it's a string, use it (though likely won't work well if API strictly demands codes). 
+        // If it's an object, send it structure.
+        let cityPayload = data.city;
+        if (typeof data.city === 'string') {
+            // Basic fallback if coming from legacy path or manual input without codes
+            cityPayload = { city_code: "00000", state_code: "00", country_code: "Co" };
+        }
 
         // Create supplier in Siigo
         const response = await fetch("https://api.siigo.com/v1/customers", {
@@ -194,14 +203,14 @@ export async function createSupplierInSiigo(data: {
             body: JSON.stringify({
                 type: data.type || "Supplier",
                 person_type: "Company",
-                id_type: "13", // NIT
+                id_type: data.id_type || "31", // Default to NIT if parsing failed
                 identification: data.identification,
-                name: data.name,
+                name: [data.name], // Siigo expects array for Company names
                 email: data.email || null,
                 phone: data.phone || null,
                 address: data.address ? {
                     address: data.address,
-                    city: data.city || null
+                    city: cityPayload || null
                 } : null
             }),
             cache: 'no-store'
