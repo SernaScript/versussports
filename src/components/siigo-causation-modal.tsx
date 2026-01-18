@@ -335,6 +335,7 @@ export function SiigoCausationModal({
                                                             <th className="px-3 py-2 font-medium text-slate-500">Descripción</th>
                                                             <th className="px-3 py-2 font-medium text-slate-500 text-right">Cant.</th>
                                                             <th className="px-3 py-2 font-medium text-slate-500 text-right">Precio</th>
+                                                            <th className="px-3 py-2 font-medium text-slate-500 text-right">Desc.</th>
                                                             <th className="px-3 py-2 font-medium text-slate-500 text-right">Subtotal</th>
                                                             <th className="px-3 py-2 font-medium text-slate-500 text-right">Impuestos</th>
                                                             <th className="px-3 py-2 font-medium text-slate-500 text-right">Total</th>
@@ -346,11 +347,23 @@ export function SiigoCausationModal({
                                                                 ? Number(previewData.providerConfig.withholdingTax.siigoId)
                                                                 : null;
 
+                                                            const discount = item.discount || 0;
                                                             const itemBase = (item.quantity || 0) * (item.price || 0);
+                                                            const itemSubtotal = itemBase - discount;
+
                                                             let taxesSum = 0;
                                                             let retentionSum = 0;
 
                                                             if (item.taxes) {
+                                                                // Sort taxes: positive (taxes) first, retentions second
+                                                                item.taxes.sort((a: any, b: any) => {
+                                                                    const aIsRet = retentionTaxId && a.id === retentionTaxId;
+                                                                    const bIsRet = retentionTaxId && b.id === retentionTaxId;
+                                                                    if (aIsRet && !bIsRet) return 1;
+                                                                    if (!aIsRet && bIsRet) return -1;
+                                                                    return 0;
+                                                                });
+
                                                                 item.taxes.forEach((t: any) => {
                                                                     if (retentionTaxId && t.id === retentionTaxId) {
                                                                         retentionSum += t.value;
@@ -360,7 +373,7 @@ export function SiigoCausationModal({
                                                                 });
                                                             }
 
-                                                            const itemTotal = itemBase + taxesSum - retentionSum;
+                                                            const itemTotal = itemSubtotal + taxesSum - retentionSum;
 
                                                             return (
                                                                 <tr key={idx}>
@@ -368,8 +381,11 @@ export function SiigoCausationModal({
                                                                     <td className="px-3 py-2 text-slate-700 truncate max-w-[150px]" title={item.description}>{item.description}</td>
                                                                     <td className="px-3 py-2 text-right">{item.quantity}</td>
                                                                     <td className="px-3 py-2 text-right">${item.price?.toLocaleString()}</td>
+                                                                    <td className="px-3 py-2 text-right text-orange-600">
+                                                                        {discount > 0 ? `-$${discount.toLocaleString()}` : "-"}
+                                                                    </td>
                                                                     <td className="px-3 py-2 text-right text-slate-600">
-                                                                        ${itemBase.toLocaleString()}
+                                                                        ${itemSubtotal.toLocaleString()}
                                                                     </td>
                                                                     <td className="px-3 py-2 text-right">
                                                                         {item.taxes && item.taxes.length > 0 ? (
@@ -414,12 +430,14 @@ export function SiigoCausationModal({
                                                         : null;
 
                                                     let totalBase = 0;
+                                                    let totalDiscounts = 0;
                                                     let totalTaxes = 0;
                                                     let totalRetentions = 0;
 
                                                     previewData.body.items?.forEach((item: any) => {
                                                         const itemBase = (item.quantity || 0) * (item.price || 0);
                                                         totalBase += itemBase;
+                                                        totalDiscounts += (item.discount || 0);
 
                                                         if (item.taxes) {
                                                             item.taxes.forEach((t: any) => {
@@ -432,7 +450,7 @@ export function SiigoCausationModal({
                                                         }
                                                     });
 
-                                                    const calculatedTotal = totalBase + totalTaxes - totalRetentions;
+                                                    const calculatedTotal = totalBase - totalDiscounts + totalTaxes - totalRetentions;
 
                                                     return (
                                                         <div className="space-y-2">
@@ -442,6 +460,12 @@ export function SiigoCausationModal({
                                                                     <span>Subtotal Items:</span>
                                                                     <span>${totalBase.toLocaleString()}</span>
                                                                 </div>
+                                                                {totalDiscounts > 0 && (
+                                                                    <div className="flex justify-between text-orange-600">
+                                                                        <span>- Descuentos:</span>
+                                                                        <span>${totalDiscounts.toLocaleString()}</span>
+                                                                    </div>
+                                                                )}
                                                                 {totalTaxes > 0 && (
                                                                     <div className="flex justify-between text-green-600">
                                                                         <span>+ Impuestos:</span>

@@ -116,10 +116,30 @@ function extractItemsFromXml(xmlContent: string) {
             });
         }
 
+        // Discount (AllowanceCharge)
+        const allowanceCharges = findKey(line, "AllowanceCharge");
+        let discount = 0;
+        if (allowanceCharges) {
+            const charges = Array.isArray(allowanceCharges) ? allowanceCharges : [allowanceCharges];
+            charges.forEach((c: any) => {
+                const indicator = findKey(c, "ChargeIndicator");
+                // Check for 'false' string or boolean
+                const isCharge = String(indicator) === "true";
+                if (!isCharge) {
+                    const amountObj = findKey(c, "Amount");
+                    const amount = Number(amountObj?.["#text"] || amountObj || 0);
+                    if (!isNaN(amount)) {
+                        discount += amount;
+                    }
+                }
+            });
+        }
+
         return {
             description: String(description),
             quantity: quantity,
             price: price,
+            discount: discount,
             taxesRaw: taxes
         };
     });
@@ -311,6 +331,8 @@ export async function previewSiigoCausation(invoiceId: string) {
 
                             if (retentionTaxId) {
                                 const base = x.quantity * x.price;
+                                // Retention calculation is fixed later if prices are adjusted, 
+                                // but initial estimate here:
                                 const retValue = base * (retentionPercentage / 100);
                                 mappedTaxes.push({ id: retentionTaxId, value: Number(retValue.toFixed(2)) });
                             }
@@ -321,7 +343,7 @@ export async function previewSiigoCausation(invoiceId: string) {
                                 description: x.description,
                                 quantity: x.quantity,
                                 price: x.price,
-                                discount: 0,
+                                discount: x.discount || 0,
                                 taxes: mappedTaxes
                             };
                         });
@@ -332,6 +354,50 @@ export async function previewSiigoCausation(invoiceId: string) {
                 // Fallback to database summary
             }
         }
+
+        // AUTO-FIX logic for inclusive prices handles 'items' in place...
+        // It's after this block in the original file, so we don't need to replace it here.
+        // But we DO need to construct the payload at the end. Can we target just the extraction?
+        // No, I need to replace 'items.map' AND 'extractItemsFromXml' return.
+
+        // I will replace from 'extractItemsFromXml' closing brace up to 'items ='
+
+        // Actually, the prompt says "Replace the extractItemsFromXml function... and Update items mapping".
+        // It's safer to replace a large chunk to capture all context.
+
+        // ... (Fallbacks and payload generation will be below, I'll update payload generation there)
+
+        // Let's rely on finding 'return {' inside maploop or extractItemsFromXml.
+
+        // To update 'items' mapping in previewSiigoCausation AND extractItemsFromXml, 
+        // I'll replace the block starting from inside extractItemsFromXml where 'return {' happens, 
+        // down to where 'items' are mapped in previewSiigoCausation.
+
+        // But 'extractItemsFromXml' is at top of file, 'previewSiigoCausation' is further down.
+        // I should probably use multi_replace for this if possible, or just replace extractItemsFromXml first?
+        // Ah, I can replace the whole helper function and subsequent helpers if they are contiguous? No, helpers are contiguous.
+
+        // The file structure:
+        // 1. imports
+        // 2. findKey
+        // 3. extractItemsFromXml (needs update)
+        // 4. extractSupplierFromXml (unchanged)
+        // 5. getSiigoTaxId (unchanged)
+        // 6. previewSiigoCausation
+        //    - ... items = xmlItems.map ... (needs update)
+        //    - ... payload = ... (needs update)
+
+        // This tool call seems to try replacing a HUGE chunk including extractSupplierFromXml which is risky if missed.
+        // Let's try to just use MULTI_REPLACE.
+
+        // Strategy:
+        // 1. Update extractItemsFromXml return object and logic before it.
+        // 2. Update items.map inside previewSiigoCausation.
+        // 3. Update payload construction inside previewSiigoCausation.
+
+        // It seems safer to use multi_replace_file_content.
+
+
 
         // AUTO-FIX: Detect if extracted prices are Tax-Inclusive
         // Logic: If Sum(ItemPrices) is close to (PayableAmount + Retentions), it means ItemPrices include VAT.
@@ -437,6 +503,7 @@ export async function previewSiigoCausation(invoiceId: string) {
         // Calculate total from items to match Siigo's calculation (max 2 decimals)
         const totalPayments = items.reduce((acc, item) => {
             const itemBase = item.price * item.quantity;
+            const discount = item.discount || 0;
             let itemTaxSum = 0;
             if (item.taxes) {
                 item.taxes.forEach((t: any) => {
@@ -448,7 +515,7 @@ export async function previewSiigoCausation(invoiceId: string) {
                     }
                 });
             }
-            return acc + itemBase + itemTaxSum;
+            return acc + itemBase - discount + itemTaxSum;
         }, 0);
 
         // Payments
@@ -459,6 +526,8 @@ export async function previewSiigoCausation(invoiceId: string) {
                 due_date: date
             }
         ];
+
+        const inputHasDiscount = items.some(i => (i.discount || 0) > 0);
 
         const payload = {
             document: {
@@ -473,6 +542,7 @@ export async function previewSiigoCausation(invoiceId: string) {
                 prefix: invoice.prefix || "",
                 number: invoice.folio || ""
             },
+            discount_type: inputHasDiscount ? "Value" : undefined,
             items: items,
             payments: payments,
             observations: `Causación automática desde DianBridge para Factura ${invoice.id}`
