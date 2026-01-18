@@ -223,7 +223,7 @@ export default function FacturasPage() {
                 const isAccounted = Boolean(invoice.isAccounted);
 
                 if (activeTab === "por-causar") {
-                    return status === "por causar" && !isAccounted;
+                    return !isAccounted;
                 }
                 if (activeTab === "causados") {
                     return isAccounted || status === "causado";
@@ -403,7 +403,7 @@ export default function FacturasPage() {
                                                 }).length
                                                 : invoices.filter(inv => {
                                                     const status = (inv.status || "").toLowerCase();
-                                                    if (tab.id === "por-causar") return status === "por causar" && !inv.isAccounted;
+                                                    if (tab.id === "por-causar") return !inv.isAccounted;
                                                     if (tab.id === "causados") return inv.isAccounted || status === "causado";
                                                     return false;
                                                 }).length}
