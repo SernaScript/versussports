@@ -95,8 +95,6 @@ export default function FacturasPage() {
                         console.log("Primer invoice desde getDianInvoices:", {
                             id: result.data[0].id,
                             pdfUrl: result.data[0].pdfUrl,
-                            PDFURL: result.data[0].PDFURL,
-                            pdf_url: result.data[0].pdf_url,
                         });
                     }
                     // Convert database format to ProcessedDianInvoice format

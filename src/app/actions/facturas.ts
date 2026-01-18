@@ -241,14 +241,23 @@ export async function getDianInvoices() {
         });
 
         const serializedInvoices = invoices.map((invoice: any) => ({
-            ...invoice,
+            id: invoice.id,
+            documentType: invoice.documentType,
+            folio: invoice.folio,
+            prefix: invoice.prefix,
+            issueDate: invoice.issueDate,
+            issuerNit: invoice.issuerNit,
             issuerName: String(invoice.issuerName || "").trim().toUpperCase(),
+            receiverNit: invoice.receiverNit,
+            receiverName: invoice.receiverName,
             vat: Number(invoice.vat),
             inc: Number(invoice.inc),
             total: Number(invoice.total),
+            group: invoice.group,
             currency: invoice.currency,
             paymentMethod: invoice.paymentMethod,
             paymentMedium: invoice.paymentMedium,
+            receptionDate: invoice.receptionDate,
             ica: invoice.ica ? Number(invoice.ica) : null,
             ic: invoice.ic ? Number(invoice.ic) : null,
             stamp: invoice.stamp ? Number(invoice.stamp) : null,
@@ -263,6 +272,12 @@ export async function getDianInvoices() {
             withheldVat: invoice.withheldVat ? Number(invoice.withheldVat) : null,
             withheldIncome: invoice.withheldIncome ? Number(invoice.withheldIncome) : null,
             withheldIca: invoice.withheldIca ? Number(invoice.withheldIca) : null,
+            status: invoice.status,
+            isAccounted: invoice.isAccounted,
+            isDownloaded: invoice.isDownloaded,
+            causationResult: invoice.causationResult,
+            createdAt: invoice.createdAt,
+            updatedAt: invoice.updatedAt,
             pdfUrl: invoice.PDFURL
                 ? invoice.PDFURL.startsWith('/api/downloads/')
                     ? invoice.PDFURL
