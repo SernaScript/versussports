@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, Upload, FileSpreadsheet, Save, Loader2, Settings2, CheckCircle2, AlertCircle, FileStack, ListFilter, PlusCircle, Check } from "lucide-react";
+import { ArrowLeft, Upload, FileSpreadsheet, Save, Loader2, Settings2, CheckCircle2, AlertCircle, FileStack, ListFilter, PlusCircle, Check, Eye } from "lucide-react";
 import { format, addMinutes } from "date-fns";
 import { es } from "date-fns/locale";
 import * as XLSX from "xlsx";
@@ -14,7 +14,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 
 import { getBankPeriodById, saveBankTransactions } from "@/app/actions/conciliaciones";
-import { processBankExpenses, getConsolidatedExpenses, approveMatchedExpenses } from "@/app/actions/accounting";
+import { processBankExpenses, getConsolidatedExpenses, approveMatchedExpenses, previewBankExpensesAccounting } from "@/app/actions/accounting";
 import { getSiigoAccounts, createBankExpenseConcept, getSiigoSettings, getDocumentTypes } from "@/app/actions/ajustes";
 import { toast } from "sonner";
 import {
@@ -83,6 +83,9 @@ export default function PeriodDetailPage() {
         date: "",
         observations: ""
     });
+    const [previewJson, setPreviewJson] = useState<any>(null);
+    const [previewEndpoint, setPreviewEndpoint] = useState<string>("");
+    const [isPreviewing, setIsPreviewing] = useState(false);
 
     useEffect(() => {
         loadPeriodData();
@@ -189,6 +192,45 @@ export default function PeriodDetailPage() {
             return;
         }
         setAccountingModalOpen(true);
+        setPreviewJson(null);
+    };
+
+    const handlePreviewJSON = async () => {
+        console.log("Requesting JSON preview...");
+        if (!accountingForm.documentId || !accountingForm.date || !accountingForm.bankAccountCode) {
+            console.warn("Validation failed:", accountingForm);
+            toast.error("Complete los campos obligatorios (Documento, Cuenta, Fecha)");
+            return;
+        }
+
+        setIsPreviewing(true);
+        setPreviewJson(null);
+        setPreviewEndpoint("");
+
+        try {
+            const res = await previewBankExpensesAccounting(periodId, {
+                documentId: Number(accountingForm.documentId),
+                bankAccountCode: accountingForm.bankAccountCode,
+                date: accountingForm.date,
+                observations: accountingForm.observations
+            });
+
+            console.log("Preview response:", res);
+
+            if (res.success) {
+                setPreviewJson(res.payload);
+                setPreviewEndpoint(res.endpoint || "");
+                toast.success("JSON generado correctamente");
+            } else {
+                console.error("Preview error from server:", res.error);
+                toast.error(res.error || "Error generando el JSON");
+            }
+        } catch (error) {
+            console.error("Preview exception:", error);
+            toast.error("Error de comunicación al generar JSON");
+        } finally {
+            setIsPreviewing(false);
+        }
     };
 
     const handleProcessExpenses = async () => {
@@ -636,7 +678,31 @@ export default function PeriodDetailPage() {
                                     </p>
                                 </div>
                             </div>
-                            <DialogFooter>
+                            <div className="bg-slate-50 p-4 rounded-lg overflow-hidden border border-slate-200">
+                                <div className="flex items-center justify-between mb-2">
+                                    <span className="text-xs font-bold text-slate-700">Payload JSON (Siigo)</span>
+                                    <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={handlePreviewJSON} disabled={isPreviewing} type="button">
+                                        {isPreviewing ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Eye className="w-3 h-3 mr-1" />}
+                                        {previewJson ? "Actualizar JSON" : "Ver JSON"}
+                                    </Button>
+                                </div>
+                                {previewEndpoint && (
+                                    <div className="mb-2 px-2 py-1 bg-slate-100 rounded border border-slate-200 font-mono text-[10px] text-slate-600 truncate">
+                                        <span className="font-bold text-slate-800 mr-2">DESTINO:</span>
+                                        {previewEndpoint}
+                                    </div>
+                                )}
+                                {previewJson ? (
+                                    <pre className="text-[10px] text-slate-600 font-mono bg-white p-2 rounded border h-40 overflow-auto">
+                                        {JSON.stringify(previewJson, null, 2)}
+                                    </pre>
+                                ) : (
+                                    <div className="h-20 flex items-center justify-center text-xs text-muted-foreground italic border border-dashed rounded bg-white">
+                                        Haga clic en "Ver JSON" para previsualizar el envío.
+                                    </div>
+                                )}
+                            </div>
+                            <DialogFooter className="gap-2 sm:gap-0">
                                 <Button variant="outline" onClick={() => setAccountingModalOpen(false)}>Cancelar</Button>
                                 <Button
                                     className="bg-slate-800 hover:bg-slate-900"
@@ -644,7 +710,7 @@ export default function PeriodDetailPage() {
                                     disabled={isAccounting}
                                 >
                                     {isAccounting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-                                    Confirmar y Enviar a Siigo
+                                    Confirmar y Enviar
                                 </Button>
                             </DialogFooter>
                         </DialogContent>

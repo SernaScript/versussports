@@ -5,6 +5,149 @@ import { createJournal } from "./siigo";
 import { format } from "date-fns";
 import { revalidatePath } from "next/cache";
 
+
+
+const buildBankExpensesPayload = async (periodId: string, accountingData: {
+    documentId: number;
+    bankAccountCode: string;
+    date: string;
+    observations: string;
+}, isPreview: boolean = false) => {
+    // 1. Fetch Configuration & Data
+    const settings = await prisma.siigoSetting.findFirst();
+    const bankNit = settings?.bankNit || "890903938";
+
+    if (!bankNit) {
+        throw new Error("Falta el NIT del banco en la configuración global.");
+    }
+
+    const concepts = await prisma.bankExpenseConcept.findMany();
+    if (concepts.length === 0) {
+        throw new Error("No hay conceptos definidos.");
+    }
+
+    const period = await prisma.bankPeriod.findUnique({
+        where: { id: periodId },
+        include: { transactions: { where: { status: "APPROVED" } } }
+    });
+
+    if (!period) throw new Error("Periodo no encontrado");
+    if (period.transactions.length === 0) {
+        throw new Error("No hay transacciones aprobadas para contabilizar.");
+    }
+
+    // 2. Logic: Process All Approved Transactions
+    const matchedTransactions: { txId: string, accountCode: string, amount: number, desc: string, conceptAlias: string }[] = [];
+    let unmatchedCount = 0;
+
+    for (const tx of period.transactions) {
+        const amount = Number(tx.amount);
+        let matched = false;
+
+        for (const concept of concepts) {
+            const pattern = new RegExp(concept.pattern, 'i');
+            if (pattern.test(tx.description)) {
+                matchedTransactions.push({
+                    txId: tx.id,
+                    accountCode: concept.accountCode,
+                    amount: amount,
+                    desc: tx.description,
+                    conceptAlias: concept.alias
+                });
+                matched = true;
+                break;
+            }
+        }
+
+        if (!matched) unmatchedCount++;
+    }
+
+    if (matchedTransactions.length === 0) {
+        throw new Error(`No se identificaron movimientos con las reglas actuales. Hay ${unmatchedCount} sin asignar.`);
+    }
+
+    // 3. Group by Account AND Concept
+    // We want separate lines for each concept, even if they share an account.
+    const groupedMovements = matchedTransactions.reduce((acc, curr) => {
+        const key = `${curr.accountCode}|${curr.conceptAlias}`;
+        if (!acc[key]) {
+            acc[key] = {
+                code: curr.accountCode,
+                alias: curr.conceptAlias,
+                value: 0
+            };
+        }
+        acc[key].value += curr.amount;
+        return acc;
+    }, {} as Record<string, { code: string, alias: string, value: number }>);
+
+    // 4. Build Journal Items
+    const items = [];
+    let totalBankNet = 0;
+    const costCenter = settings?.costCenterCode ? { code: settings.costCenterCode } : undefined;
+
+    for (const group of Object.values(groupedMovements)) {
+        if (group.value === 0) continue;
+
+        const isNetExpense = group.value < 0; // Negative bank movement = Expense (Debit on concept)
+        const absoluteValue = Math.abs(group.value);
+
+        items.push({
+            account: {
+                code: group.code,
+                movement: isNetExpense ? "Debit" : "Credit"
+            },
+            customer: {
+                identification: bankNit,
+                branch_office: 0
+            },
+            value: Number(absoluteValue.toFixed(2)),
+            description: `${group.alias} - ${period.name}`,
+            cost_center: costCenter,
+            tax: group.code.startsWith("24") ? {
+                id: 27572,
+                name: "IVA",
+                type: "IVA",
+                percentage: 19
+            } : (group.code.startsWith("2365") ? {
+                id: 27577,
+                name: "RTE",
+                type: "RTE",
+                percentage: 4
+            } : undefined)
+        });
+
+        totalBankNet += group.value;
+    }
+
+    // Bank Movement (Contra-partida/Salida de banco)
+    if (totalBankNet !== 0) {
+        const isNetInput = totalBankNet > 0;
+        items.push({
+            account: {
+                code: accountingData.bankAccountCode, // Use account from form
+                movement: isNetInput ? "Debit" : "Credit"
+            },
+            customer: {
+                identification: bankNit,
+                branch_office: 0
+            },
+            value: Number(Math.abs(totalBankNet).toFixed(2)),
+            description: `Suma neta movimientos bancarios ${period.name}`,
+            cost_center: costCenter
+        });
+    }
+
+    const journalPayload = {
+        document: { id: accountingData.documentId },
+        date: accountingData.date,
+        items: items,
+        observations: accountingData.observations
+    };
+
+    return { journalPayload, matchedTransactions, unmatchedCount, periodName: period.name };
+};
+
 export async function processBankExpenses(periodId: string, accountingData: {
     documentId: number;
     bankAccountCode: string;
@@ -12,120 +155,7 @@ export async function processBankExpenses(periodId: string, accountingData: {
     observations: string;
 }) {
     try {
-        // 1. Fetch Configuration & Data
-        const settings = await prisma.siigoSetting.findFirst();
-        if (!settings?.bankNit) {
-            return { success: false, error: "Falta el NIT del banco en la configuración global." };
-        }
-
-        const concepts = await prisma.bankExpenseConcept.findMany();
-        if (concepts.length === 0) {
-            return { success: false, error: "No hay conceptos definidos." };
-        }
-
-        const period = await prisma.bankPeriod.findUnique({
-            where: { id: periodId },
-            include: { transactions: { where: { status: "APPROVED" } } }
-        });
-
-        if (!period) return { success: false, error: "Periodo no encontrado" };
-        if (period.transactions.length === 0) {
-            return { success: false, error: "No hay transacciones aprobadas para contabilizar." };
-        }
-
-        // 2. Logic: Process All Approved Transactions
-        const matchedTransactions: { txId: string, accountCode: string, amount: number, desc: string }[] = [];
-        let unmatchedCount = 0;
-
-        for (const tx of period.transactions) {
-            const amount = Number(tx.amount);
-            let matched = false;
-
-            for (const concept of concepts) {
-                const pattern = new RegExp(concept.pattern, 'i');
-                if (pattern.test(tx.description)) {
-                    matchedTransactions.push({
-                        txId: tx.id,
-                        accountCode: concept.accountCode,
-                        amount: amount,
-                        desc: tx.description
-                    });
-                    matched = true;
-                    break;
-                }
-            }
-
-            if (!matched) unmatchedCount++;
-        }
-
-        if (matchedTransactions.length === 0) {
-            return {
-                success: false,
-                error: `No se identificaron movimientos con las reglas actuales. Hay ${unmatchedCount} sin asignar.`
-            };
-        }
-
-        // 3. Group by Account
-        const groupedMovements = matchedTransactions.reduce((acc, curr) => {
-            if (!acc[curr.accountCode]) {
-                acc[curr.accountCode] = 0;
-            }
-            acc[curr.accountCode] += curr.amount; // Net amount (could be pos or neg)
-            return acc;
-        }, {} as Record<string, number>);
-
-        // 4. Build Journal Items
-        const items = [];
-        let totalBankNet = 0;
-        const costCenter = settings.costCenterCode ? { code: settings.costCenterCode } : undefined;
-
-        for (const [code, value] of Object.entries(groupedMovements)) {
-            if (value === 0) continue;
-
-            const isNetExpense = value < 0; // Negative bank movement = Expense (Debit on concept)
-            const absoluteValue = Math.abs(value);
-
-            items.push({
-                account: {
-                    code: code,
-                    movement: isNetExpense ? "Debit" : "Credit"
-                },
-                customer: {
-                    identification: settings.bankNit,
-                    branch_office: 0
-                },
-                value: Number(absoluteValue.toFixed(2)),
-                description: `Resumen ${isNetExpense ? 'Gastos' : 'Ingresos'} ${period.name} - ${code}`,
-                cost_center: costCenter
-            });
-
-            totalBankNet += value;
-        }
-
-        // Bank Movement (Contra-partida/Salida de banco)
-        if (totalBankNet !== 0) {
-            const isNetInput = totalBankNet > 0;
-            items.push({
-                account: {
-                    code: accountingData.bankAccountCode, // Use account from form
-                    movement: isNetInput ? "Debit" : "Credit"
-                },
-                customer: {
-                    identification: settings.bankNit,
-                    branch_office: 0
-                },
-                value: Number(Math.abs(totalBankNet).toFixed(2)),
-                description: `Suma neta movimientos bancarios ${period.name}`,
-                cost_center: costCenter
-            });
-        }
-
-        const journalPayload = {
-            document: { id: accountingData.documentId },
-            date: accountingData.date,
-            items: items,
-            observations: accountingData.observations
-        };
+        const { journalPayload, matchedTransactions, unmatchedCount } = await buildBankExpensesPayload(periodId, accountingData);
 
         // 5. Send to Siigo
         const siigoRes = await createJournal(journalPayload);
@@ -152,9 +182,27 @@ export async function processBankExpenses(periodId: string, accountingData: {
             warning: unmatchedCount > 0 ? `${unmatchedCount} movimientos no coinciden con ninguna regla.` : undefined
         };
 
-    } catch (error) {
+    } catch (error: any) {
         console.error("Error processing expenses:", error);
-        return { success: false, error: "Error interno al procesar movimientos." };
+        return { success: false, error: error.message || "Error interno al procesar movimientos." };
+    }
+}
+
+export async function previewBankExpensesAccounting(periodId: string, accountingData: {
+    documentId: number;
+    bankAccountCode: string;
+    date: string;
+    observations: string;
+}) {
+    try {
+        const { journalPayload } = await buildBankExpensesPayload(periodId, accountingData, true);
+        return {
+            success: true,
+            payload: journalPayload,
+            endpoint: "POST https://api.siigo.com/v1/journals"
+        };
+    } catch (error: any) {
+        return { success: false, error: error.message || "Error generando vista previa." };
     }
 }
 

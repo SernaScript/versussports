@@ -180,7 +180,7 @@ export async function createJournal(journalData: any) {
         if (!auth) return { success: false, error: "No hay credenciales de Siigo configuradas o fallo autenticación." };
 
         // 2. Create Journal
-        const response = await fetch("https://api.siigo.com/v1/vouchers", {
+        const response = await fetch("https://api.siigo.com/v1/journals", {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
