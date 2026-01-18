@@ -23,7 +23,8 @@ import {
     DownloadCloud,
     FileStack,
     Timer,
-    BadgeCheck
+    BadgeCheck,
+    Send
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -382,7 +383,7 @@ export default function FacturasPage() {
                                     key={tab.id}
                                     value={tab.id}
                                     className={cn(
-                                        "rounded-xl px-6 h-full text-xs font-black transition-all flex items-center gap-2 group tracking-widest uppercase",
+                                        "rounded-xl px-6 h-full text-sm font-bold transition-all flex items-center gap-2 group tracking-widest uppercase",
                                         "data-[state=active]:bg-white data-[state=active]:text-blue-600 data-[state=active]:shadow-[0_2px_10px_rgba(0,0,0,0.06)]",
                                         "text-slate-500 hover:text-slate-700"
                                     )}
@@ -393,7 +394,7 @@ export default function FacturasPage() {
                                     {tab.label}
                                     {invoices.length > 0 && (
                                         <span className={cn(
-                                            "ml-1 flex items-center justify-center min-w-[20px] h-[20px] px-1.5 rounded-full text-[10px] font-black transition-colors",
+                                            "ml-1 flex items-center justify-center min-w-[20px] h-[20px] px-1.5 rounded-full text-xs font-bold transition-colors",
                                             "group-data-[state=active]:bg-blue-50 group-data-[state=active]:text-blue-600 bg-slate-200 text-slate-500"
                                         )}>
                                             {tab.id === "all"
@@ -417,12 +418,12 @@ export default function FacturasPage() {
                     <div className="hidden lg:flex items-center gap-3">
                         <div className="flex -space-x-2">
                             {[1, 2, 3].map((i) => (
-                                <div key={i} className="h-8 w-8 rounded-full border-2 border-white bg-slate-100 flex items-center justify-center text-[10px] font-black text-slate-400">
+                                <div key={i} className="h-8 w-8 rounded-full border-2 border-white bg-slate-100 flex items-center justify-center text-xs font-bold text-slate-400">
                                     U{i}
                                 </div>
                             ))}
                         </div>
-                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Colaboradores</span>
+                        <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Colaboradores</span>
                     </div>
                 </div>
 
@@ -502,7 +503,7 @@ export default function FacturasPage() {
                             <table className="w-full border-separate border-spacing-0">
                                 <thead className="sticky top-0 z-30">
                                     <tr className="bg-slate-50">
-                                        <th className="w-[60px] px-4 py-5 sticky top-0 bg-slate-50 border-b border-slate-200 z-40">
+                                        <th className="w-[50px] px-2 py-5 sticky top-0 bg-slate-50 border-b border-slate-200 z-40">
                                             <div className="flex items-center justify-center">
                                                 <input
                                                     type="checkbox"
@@ -517,25 +518,25 @@ export default function FacturasPage() {
                                                 />
                                             </div>
                                         </th>
-                                        <th className="w-[140px] text-slate-500 font-bold py-5 px-4 text-[11px] uppercase tracking-widest sticky top-0 bg-slate-50 border-b border-slate-200 text-left z-40">
+                                        <th className="w-[140px] text-slate-500 font-bold py-5 px-4 text-sm uppercase tracking-widest sticky top-0 bg-slate-50 border-b border-slate-200 text-left z-40">
                                             Fecha <ArrowUpDown className="inline h-3 w-3 ml-1 text-slate-400" />
                                         </th>
-                                        <th className="min-w-[250px] text-slate-500 font-bold py-5 px-4 text-[11px] uppercase tracking-widest sticky top-0 bg-slate-50 border-b border-slate-200 text-left z-40">
+                                        <th className="min-w-[250px] text-slate-500 font-bold py-5 px-4 text-sm uppercase tracking-widest sticky top-0 bg-slate-50 border-b border-slate-200 text-left z-40">
                                             Nombre Emisor
                                         </th>
-                                        <th className="w-[160px] text-slate-500 font-bold py-5 px-4 text-[11px] uppercase tracking-widest sticky top-0 bg-slate-50 border-b border-slate-200 text-right z-40">
-                                            Valor Impuesto
+                                        <th className="w-[160px] text-slate-500 font-bold py-5 px-4 text-sm uppercase tracking-widest sticky top-0 bg-slate-50 border-b border-slate-200 text-right z-40">
+                                            Impuestos
                                         </th>
-                                        <th className="w-[160px] text-slate-500 font-bold py-5 px-4 text-[11px] uppercase tracking-widest sticky top-0 bg-slate-50 border-b border-slate-200 text-right z-40">
+                                        <th className="w-[160px] text-slate-500 font-bold py-5 px-4 text-sm uppercase tracking-widest sticky top-0 bg-slate-50 border-b border-slate-200 text-right z-40">
                                             Total <ArrowUpDown className="inline h-3 w-3 ml-1 text-slate-400" />
                                         </th>
-                                        <th className="w-[130px] text-slate-500 font-bold py-5 px-4 text-[11px] uppercase tracking-widest sticky top-0 bg-slate-50 border-b border-slate-200 text-center z-40">
+                                        <th className="w-[130px] text-slate-500 font-bold py-5 px-4 text-sm uppercase tracking-widest sticky top-0 bg-slate-50 border-b border-slate-200 text-center z-40">
                                             Descargado
                                         </th>
-                                        <th className="w-[130px] text-slate-500 font-bold py-5 px-4 text-[11px] uppercase tracking-widest sticky top-0 bg-slate-50 border-b border-slate-200 text-center z-40">
+                                        <th className="w-[130px] text-slate-500 font-bold py-5 px-4 text-sm uppercase tracking-widest sticky top-0 bg-slate-50 border-b border-slate-200 text-center z-40">
                                             Contabilizado
                                         </th>
-                                        <th className="w-[120px] text-slate-500 font-bold py-5 px-4 text-[11px] uppercase tracking-widest sticky top-0 bg-slate-50 border-b border-slate-200 text-center z-40">
+                                        <th className="w-[120px] text-slate-500 font-bold py-5 px-4 text-sm uppercase tracking-widest sticky top-0 bg-slate-50 border-b border-slate-200 text-center z-40">
                                             Acciones
                                         </th>
                                     </tr>
@@ -547,7 +548,7 @@ export default function FacturasPage() {
                                                 key={invoice.id}
                                                 className="hover:bg-blue-50/30 transition-colors group border-b border-slate-100"
                                             >
-                                                <td className="px-4 py-4 whitespace-nowrap">
+                                                <td className="px-2 py-4 whitespace-nowrap">
                                                     <div className="flex items-center justify-center">
                                                         <input
                                                             type="checkbox"
@@ -563,30 +564,30 @@ export default function FacturasPage() {
                                                         />
                                                     </div>
                                                 </td>
-                                                <td className="py-4 px-3 text-sm text-slate-500 whitespace-nowrap">
+                                                <td className="py-4 px-3 text-base text-slate-500 whitespace-nowrap">
                                                     <div className="flex items-center gap-2">
-                                                        <Calendar className="h-3.5 w-3.5 text-slate-400" />
+                                                        <Calendar className="h-4 w-4 text-slate-400" />
                                                         {invoice.issueDate ? formatDate(invoice.issueDate) : "-"}
                                                     </div>
                                                 </td>
-                                                <td className="py-4 px-3 whitespace-nowrap">
+                                                <td className="py-4 px-3 whitespace-normal">
                                                     <div className="flex flex-col gap-0.5">
                                                         <div className="flex items-center gap-2">
-                                                            <Building2 className="h-3.5 w-3.5 text-slate-400 flex-shrink-0" />
-                                                            <span className="text-sm font-medium text-slate-700 truncate max-w-[200px]">
+                                                            <Building2 className="h-4 w-4 text-slate-400 flex-shrink-0" />
+                                                            <span className="text-base font-medium text-slate-700">
                                                                 {invoice.issuerName || "-"}
                                                             </span>
                                                         </div>
-                                                        <span className="text-[10px] text-slate-400 pl-5 uppercase">
+                                                        <span className="text-sm text-slate-400 pl-6 uppercase">
                                                             NIT: {invoice.issuerNit || "-"}
                                                         </span>
                                                     </div>
                                                 </td>
-                                                <td className="py-4 px-3 text-right text-xs font-medium text-slate-500 whitespace-nowrap">
+                                                <td className="py-4 px-3 text-right text-base font-medium text-slate-500 whitespace-nowrap">
                                                     {formatCurrency((invoice.vat || 0) + (invoice.inc || 0))}
                                                 </td>
                                                 <td className="py-4 px-3 text-right whitespace-nowrap">
-                                                    <span className="font-bold text-slate-900">
+                                                    <span className="font-bold text-base text-slate-900">
                                                         {formatCurrency(invoice.total || 0)}
                                                     </span>
                                                 </td>
@@ -609,42 +610,54 @@ export default function FacturasPage() {
                                                     </div>
                                                 </td>
                                                 <td className="py-4 px-3 whitespace-nowrap">
-                                                    <div className="flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    <div className="flex items-center justify-center gap-1">
                                                         <Button
                                                             variant="ghost"
                                                             size="icon"
+                                                            disabled={!invoice.isDownloaded}
                                                             onClick={() => {
                                                                 setSelectedPdfUrl(invoice.pdfUrl || null);
                                                                 setIsPdfModalOpen(true);
                                                             }}
-                                                            className="h-8 w-8 text-blue-600 hover:bg-blue-50"
+                                                            className={cn(
+                                                                "h-8 w-8",
+                                                                !invoice.isDownloaded ? "text-slate-300" : "text-blue-600 hover:bg-blue-50"
+                                                            )}
                                                             title="Ver PDF"
+                                                        >
+                                                            <FileText className="h-4 w-4" />
+                                                        </Button>
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            disabled={!invoice.isDownloaded}
+                                                            onClick={() => {
+                                                                const encodedUrl = encodeURIComponent(invoice.xmlUrl || "");
+                                                                router.push(`/facturas/xml?url=${encodedUrl}`);
+                                                            }}
+                                                            className={cn(
+                                                                "h-8 w-8",
+                                                                !invoice.isDownloaded ? "text-slate-300" : "text-emerald-600 hover:bg-emerald-50"
+                                                            )}
+                                                            title="Ver XML"
                                                         >
                                                             <Eye className="h-4 w-4" />
                                                         </Button>
                                                         <Button
                                                             variant="ghost"
                                                             size="icon"
-                                                            onClick={() => {
-                                                                const encodedUrl = encodeURIComponent(invoice.xmlUrl || "");
-                                                                router.push(`/facturas/xml?url=${encodedUrl}`);
-                                                            }}
-                                                            className="h-8 w-8 text-emerald-600 hover:bg-emerald-50"
-                                                            title="Ver XML"
-                                                        >
-                                                            <FileCode className="h-4 w-4" />
-                                                        </Button>
-                                                        <Button
-                                                            variant="ghost"
-                                                            size="icon"
+                                                            disabled={!invoice.isDownloaded || invoice.isAccounted}
                                                             onClick={() => {
                                                                 setSelectedCausationId(invoice.id);
                                                                 setIsCausationModalOpen(true);
                                                             }}
-                                                            className="h-8 w-8 text-indigo-600 hover:bg-indigo-50"
+                                                            className={cn(
+                                                                "h-8 w-8",
+                                                                (!invoice.isDownloaded || invoice.isAccounted) ? "text-slate-300" : "text-indigo-600 hover:bg-indigo-50"
+                                                            )}
                                                             title="Contabilizar en Siigo"
                                                         >
-                                                            <BadgeCheck className="h-4 w-4" />
+                                                            <Send className="h-4 w-4" />
                                                         </Button>
                                                     </div>
                                                 </td>
@@ -712,7 +725,6 @@ export default function FacturasPage() {
                             <div className="flex items-center gap-1">
                                 <Button
                                     variant="ghost"
-                                    size="sm"
                                     onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
                                     disabled={currentPage === 1}
                                     className="text-slate-600"
@@ -730,9 +742,8 @@ export default function FacturasPage() {
                                         <Button
                                             key={pageNum}
                                             variant={currentPage === pageNum ? "secondary" : "ghost"}
-                                            size="sm"
                                             onClick={() => setCurrentPage(pageNum)}
-                                            className={`w-8 h-8 p-0 ${currentPage === pageNum ? "bg-blue-50 text-blue-600 hover:bg-blue-100" : "text-slate-600"}`}
+                                            className={`w-9 h-9 p-0 ${currentPage === pageNum ? "bg-blue-50 text-blue-600 hover:bg-blue-100" : "text-slate-600"}`}
                                         >
                                             {pageNum}
                                         </Button>
@@ -740,7 +751,6 @@ export default function FacturasPage() {
                                 })}
                                 <Button
                                     variant="ghost"
-                                    size="sm"
                                     onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
                                     disabled={currentPage === totalPages}
                                     className="text-slate-600"

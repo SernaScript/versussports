@@ -60,7 +60,7 @@ function XMLViewerContent() {
                     const header = parseInvoiceHeader(text);
                     setItems(parsedItems);
                     setInvoiceHeader(header);
-                    
+
                     // Extract CUFE and load invoice from database
                     const cufe = parseCufeFromXml(text);
                     if (cufe) {
@@ -70,7 +70,7 @@ function XMLViewerContent() {
                             setDbInvoice(invoiceResult.data);
                         }
                     }
-                    
+
                     setLoading(false);
                 })
                 .catch((err) => {
@@ -161,13 +161,13 @@ function XMLViewerContent() {
                         >
                             <ArrowLeft className="h-5 w-5" />
                         </Button>
-                        <span className="text-sm font-black text-slate-500 uppercase tracking-[0.3em]">Auditoría de XML</span>
+                        <span className="text-sm font-black text-slate-500 uppercase tracking-[0.3em]">Detalle de Factura</span>
                     </div>
                     <div className="flex items-center gap-3">
                         {invoiceId && (
-                            <Button 
-                                variant="outline" 
-                                size="sm" 
+                            <Button
+                                variant="outline"
+                                size="sm"
                                 className="border-indigo-200 text-indigo-700 font-black text-[11px] uppercase tracking-widest hover:bg-indigo-50"
                                 onClick={() => setIsCausationModalOpen(true)}
                                 disabled={!invoiceId || (dbInvoice?.isAccounted === true)}
@@ -176,14 +176,17 @@ function XMLViewerContent() {
                                 {dbInvoice?.isAccounted ? "Ya Contabilizado" : "Contabilizar"}
                             </Button>
                         )}
-                        <Button variant="outline" size="sm" className="hidden sm:flex border-slate-200 text-slate-700 font-black text-[11px] uppercase tracking-widest hover:bg-slate-50">
-                            <Download className="mr-2 h-4 w-4" />
-                            Expediente XML
-                        </Button>
-                        <Button variant="outline" size="sm" className="hidden sm:flex border-slate-200 text-slate-700 font-black text-[11px] uppercase tracking-widest hover:bg-slate-50">
-                            <Printer className="mr-2 h-4 w-4" />
-                            Imprimir PDF
-                        </Button>
+                        {dbInvoice?.pdfUrl && (
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                className="hidden sm:flex border-slate-200 text-slate-700 font-black text-[11px] uppercase tracking-widest hover:bg-slate-50"
+                                onClick={() => window.open(dbInvoice.pdfUrl, "_blank")}
+                            >
+                                <Download className="mr-2 h-4 w-4" />
+                                Descargar PDF
+                            </Button>
+                        )}
                         <div className="w-px h-6 bg-slate-200 mx-2 hidden sm:block"></div>
                         <Badge className="bg-slate-900 text-white border-none text-[10px] font-black uppercase tracking-widest py-1.5 px-4 shadow-sm">
                             DIAN Standard
@@ -253,8 +256,8 @@ function XMLViewerContent() {
                                             <div className="flex flex-col items-end gap-0.5">
                                                 <span className={cn(
                                                     "font-bold",
-                                                    Math.abs((dbInvoice.total - (invoiceHeader?.legalMonetaryTotal?.payableAmount || 0))) > 1 
-                                                        ? "text-red-600" 
+                                                    Math.abs((dbInvoice.total - (invoiceHeader?.legalMonetaryTotal?.payableAmount || 0))) > 1
+                                                        ? "text-red-600"
                                                         : "text-green-600"
                                                 )}>
                                                     BD: {formatCurrency(dbInvoice.total)}
@@ -269,8 +272,8 @@ function XMLViewerContent() {
                                             <div className="flex flex-col items-end gap-0.5">
                                                 <span className={cn(
                                                     "font-bold",
-                                                    Math.abs((dbInvoice.vat - (invoiceHeader?.totalTaxAmount || 0))) > 1 
-                                                        ? "text-red-600" 
+                                                    Math.abs((dbInvoice.vat - (invoiceHeader?.totalTaxAmount || 0))) > 1
+                                                        ? "text-red-600"
                                                         : "text-green-600"
                                                 )}>
                                                     BD: {formatCurrency(dbInvoice.vat)}
@@ -291,7 +294,7 @@ function XMLViewerContent() {
                                 </CardContent>
                             </Card>
                         )}
-                        
+
                         {/* Subtotal Card */}
                         <Card className="border-none shadow-sm bg-white overflow-hidden">
                             <CardContent className="p-6">
