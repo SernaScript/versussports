@@ -333,6 +333,62 @@ export async function previewSiigoCausation(invoiceId: string) {
             }
         }
 
+        // AUTO-FIX: Detect if extracted prices are Tax-Inclusive
+        // Logic: If Sum(ItemPrices) is close to (PayableAmount + Retentions), it means ItemPrices include VAT.
+        // Normally, Sum(ItemPrices) should be (PayableAmount - VAT + Retentions).
+        const currentTotalBase = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+
+        const currentTotalRetentions = items.reduce((sum, item) => {
+            if (!item.taxes) return sum;
+            const ret = item.taxes.find((t: any) => t.id === retentionTaxId);
+            return sum + (ret ? ret.value : 0);
+        }, 0);
+
+        const payableAmount = Number(invoice.total);
+        const tolerance = 1000; // Tolerance for rounding differences
+
+        // Check if Base ~= Payable + Retentions
+        // This implies Base = Net + Taxes
+        // Also ensure we have taxes to subtract, otherwise it's just a non-tax invoice.
+        const totalTaxes = items.reduce((sum, item) => {
+            return sum + (item.taxes?.reduce((tSum: number, t: any) => t.id !== retentionTaxId ? tSum + t.value : tSum, 0) || 0);
+        }, 0);
+
+        // Check if Base ~= Payable (Pre-Retention) OR Base ~= Payable + Retentions (Post-Retention)
+        const diffPreRetention = Math.abs(currentTotalBase - payableAmount);
+        const diffPostRetention = Math.abs(currentTotalBase - (payableAmount + currentTotalRetentions));
+
+        const isInclusive = (diffPreRetention < tolerance || diffPostRetention < tolerance) && totalTaxes > 0;
+
+        if (isInclusive) {
+            console.log("Detected Tax-Inclusive Prices in XML. Adjusting to Net Prices.");
+            items.forEach(item => {
+                // Calculate tax amount to subtract (exclude retention)
+                const taxAmount = item.taxes?.reduce((sum: number, t: any) => {
+                    return t.id !== retentionTaxId ? sum + t.value : sum;
+                }, 0) || 0;
+
+                if (taxAmount > 0) {
+                    const oldBase = item.price * item.quantity;
+                    // New Base = InclusiveBase - Taxes
+                    const newBase = oldBase - taxAmount;
+                    const newPrice = newBase / item.quantity;
+
+                    // Update Price
+                    item.price = Number(newPrice.toFixed(4));
+
+                    // Recalculate Retention if it exists, as it was likely calculated on the gross base
+                    if (retentionTaxId && item.taxes) {
+                        const retIndex = item.taxes.findIndex((t: any) => t.id === retentionTaxId);
+                        if (retIndex !== -1) {
+                            const newRetention = newBase * (retentionPercentage / 100);
+                            item.taxes[retIndex].value = Number(newRetention.toFixed(2)); // Siigo API precision
+                        }
+                    }
+                }
+            });
+        }
+
         // Fallback if no XML items found
         if (!fromXml) {
             const itemsTaxes = [];
