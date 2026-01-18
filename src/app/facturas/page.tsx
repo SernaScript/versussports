@@ -351,9 +351,7 @@ export default function FacturasPage() {
                         <h1 className="text-2xl font-bold text-[#1e293b]">Documentos</h1>
                     </div>
                     <div className="flex items-center gap-3">
-                        <span className="text-xs text-muted-foreground bg-white px-3 py-1.5 rounded-full border border-slate-200 shadow-sm">
-                            Actualizado: {new Date().toLocaleDateString('es-CO', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                        </span>
+
                         <Button
                             variant="outline"
                             className="bg-white hover:bg-slate-50 border-slate-200 text-slate-700 shadow-sm"

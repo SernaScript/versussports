@@ -133,7 +133,7 @@ export async function previewSiigoCausation(invoiceId: string) {
             return { success: false, error: "Factura no encontrada" };
         }
 
-        const providerConfig = await (prisma as any).providerAccountingConfig.findUnique({
+        const providerConfig = await prisma.providerAccountingConfig.findUnique({
             where: { providerNit: invoice.issuerNit },
             include: {
                 expenseAccount: true,
@@ -151,10 +151,13 @@ export async function previewSiigoCausation(invoiceId: string) {
         // Get the account code for product mapping
         const productCode = providerConfig.expenseAccount?.code || "001";
 
+        // Get retention tax ID and Percentage if configured
+        const retentionTaxId = providerConfig.withholdingTax?.siigoId ? Number(providerConfig.withholdingTax.siigoId) : null;
+        const retentionPercentage = providerConfig.withholdingTax?.percentage ? Number(providerConfig.withholdingTax.percentage) : 0;
+
         // --- ITEM GENERATION LOGIC ---
         let items: any[] = [];
         let fromXml = false;
-
         // Try to read XML
         if (invoice.XMLURL) {
             try {
@@ -170,12 +173,18 @@ export async function previewSiigoCausation(invoiceId: string) {
                     if (xmlItems && xmlItems.length > 0) {
                         fromXml = true;
                         items = xmlItems.map(x => {
-                            const mappedTaxes = x.taxesRaw
+                            const mappedTaxes: any[] = x.taxesRaw
                                 .map(t => {
                                     const id = getSiigoTaxId(t.rate);
                                     return id ? { id, value: t.value } : null;
                                 })
                                 .filter(Boolean);
+
+                            if (retentionTaxId) {
+                                const base = x.quantity * x.price;
+                                const retValue = base * (retentionPercentage / 100);
+                                mappedTaxes.push({ id: retentionTaxId, value: Number(retValue.toFixed(2)) });
+                            }
 
                             return {
                                 type: "Account",
@@ -216,6 +225,11 @@ export async function previewSiigoCausation(invoiceId: string) {
                 }
             }
 
+            if (retentionTaxId) {
+                const retValue = baseValue * (retentionPercentage / 100);
+                itemsTaxes.push({ id: retentionTaxId, value: Number(retValue.toFixed(2)) });
+            }
+
             // TODO: Handle INC (Impuesto Nacional al Consumo) mapping if generic code exists
 
             const description = `Factura de Compra ${invoice.prefix || ""}${invoice.folio} - ${invoice.issuerName}`;
@@ -238,8 +252,18 @@ export async function previewSiigoCausation(invoiceId: string) {
         // Calculate total from items to match Siigo's calculation (max 2 decimals)
         const totalPayments = items.reduce((acc, item) => {
             const itemBase = item.price * item.quantity;
-            const itemTaxes = item.taxes ? item.taxes.reduce((tAcc: number, t: any) => tAcc + t.value, 0) : 0;
-            return acc + itemBase + itemTaxes;
+            let itemTaxSum = 0;
+            if (item.taxes) {
+                item.taxes.forEach((t: any) => {
+                    // Check if this tax is the retention tax
+                    if (retentionTaxId && t.id === retentionTaxId) {
+                        itemTaxSum -= t.value;
+                    } else {
+                        itemTaxSum += t.value;
+                    }
+                });
+            }
+            return acc + itemBase + itemTaxSum;
         }, 0);
 
         // Payments
@@ -266,7 +290,7 @@ export async function previewSiigoCausation(invoiceId: string) {
             },
             items: items,
             payments: payments,
-            observations: `Causación automática desde App para Factura ${invoice.id}`
+            observations: `Causación automática desde DianBridge para Factura ${invoice.id}`
         };
 
         const headers = {

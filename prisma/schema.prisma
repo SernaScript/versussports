@@ -226,7 +226,7 @@ model SiigoTax {
   siigoId     String   @unique // ID de Siigo (puede ser UUID o número como string)
   name        String
   type        String?  // Tipo de impuesto
-  rate        Decimal? @db.Decimal(5, 2) // Porcentaje
+  percentage  Float?   // Porcentaje del impuesto
   active      Boolean  @default(true)
 
   providerWithholdingConfigs ProviderAccountingConfig[] @relation("ProviderWithholdingTax")

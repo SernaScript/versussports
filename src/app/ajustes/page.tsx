@@ -1107,7 +1107,7 @@ function WithholdingTaxSelector({ value, onSelect, initialTax }: { value: string
 
     const selectedTax = findSelected();
     const selectedLabel = selectedTax
-        ? `${selectedTax.name}${selectedTax.rate != null ? ` (${selectedTax.rate}%)` : ""} - ${selectedTax.type || ""}`
+        ? `${selectedTax.name}${selectedTax.percentage != null ? ` (${selectedTax.percentage}%)` : ""} - ${selectedTax.type || ""}`
         : value;
 
     return (
@@ -1158,7 +1158,7 @@ function WithholdingTaxSelector({ value, onSelect, initialTax }: { value: string
                                     <div className="flex flex-col">
                                         <span className="font-medium">{tax.name}</span>
                                         <span className="text-xs text-muted-foreground">
-                                            {tax.type || "-"} · SiigoId: {tax.siigoId}{tax.rate != null ? ` · ${tax.rate}%` : ""}
+                                            {tax.type || "-"} · SiigoId: {tax.siigoId}{tax.percentage != null ? ` · ${tax.percentage}%` : ""}
                                         </span>
                                     </div>
                                 </CommandItem>
@@ -1687,7 +1687,7 @@ function TaxesSection() {
                                             <TableRow key={t.id}>
                                                 <TableCell className="font-medium">{t.name}</TableCell>
                                                 <TableCell>{t.type || "-"}</TableCell>
-                                                <TableCell>{t.rate ? `${t.rate}%` : "-"}</TableCell>
+                                                <TableCell>{t.percentage ? `${t.percentage}%` : "-"}</TableCell>
                                                 <TableCell>
                                                     <Badge variant={t.active ? "outline" : "secondary"}>
                                                         {t.active ? "Activo" : "Inactivo"}
