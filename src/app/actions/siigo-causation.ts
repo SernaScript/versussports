@@ -34,7 +34,7 @@ function extractItemsFromXml(xmlContent: string) {
 
     if (lines.length === 0) return null;
 
-    return lines.map((line: any) => {
+    const items = lines.map((line: any) => {
         // Item & Description
         const item = findKey(line, "Item");
         let description = item ? findKey(item, "Description") : "Item Sin Descripción";
@@ -43,7 +43,7 @@ function extractItemsFromXml(xmlContent: string) {
         const brand = findKey(item, "BrandName");
         const model = findKey(item, "ModelName");
         const sellersIdElement = findKey(findKey(item, "SellersItemIdentification"), "ID");
-        const standardIdElement = findKey(findKey(item, "StandardItemIdentification"), "ID");
+        // const standardIdElement = findKey(findKey(item, "StandardItemIdentification"), "ID");
 
         let details = [];
         if (brand) details.push(`Marca: ${brand}`);
@@ -143,6 +143,35 @@ function extractItemsFromXml(xmlContent: string) {
             taxesRaw: taxes
         };
     });
+
+    // Handle Global AllowanceCharges (e.g., Tips/Propinas)
+    const globalAllowanceCharges = findKey(root, "AllowanceCharge");
+    if (globalAllowanceCharges) {
+        const charges = Array.isArray(globalAllowanceCharges) ? globalAllowanceCharges : [globalAllowanceCharges];
+        charges.forEach((c: any) => {
+            const indicator = findKey(c, "ChargeIndicator");
+            // "true" means Charge (Propina potentially)
+            if (String(indicator) === "true") {
+                const reasonObj = findKey(c, "AllowanceChargeReason");
+                const reason = typeof reasonObj === 'object' ? (reasonObj?.["#text"] || "") : (reasonObj || "");
+
+                const amountObj = findKey(c, "Amount");
+                const amount = Number(amountObj?.["#text"] || amountObj || 0);
+
+                if (amount > 0) {
+                    items.push({
+                        description: String(reason || "Cargo Global / Propina"),
+                        quantity: 1,
+                        price: amount,
+                        discount: 0,
+                        taxesRaw: []
+                    });
+                }
+            }
+        });
+    }
+
+    return items;
 }
 
 function extractSupplierFromXml(xmlContent: string) {
