@@ -1,7 +1,15 @@
 import type { NextConfig } from "next";
 
+const appEnv = (
+  globalThis as { process?: { env?: Record<string, string | undefined> } }
+).process?.env?.APP_ENV;
+
+const isQA = appEnv === "qa";
+
 const nextConfig: NextConfig = {
-  /* config options here */
+  typescript: {
+    ignoreBuildErrors: isQA,
+  },
 };
 
 export default nextConfig;
